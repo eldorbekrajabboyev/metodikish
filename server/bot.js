@@ -83,7 +83,7 @@ async function startBot(app) {
     try {
       bot = new TelegramBot(BOT_TOKEN);
       const crypto = require('crypto');
-      const webhookSecret = crypto.createHmac('sha256', 'webhook-secret').update(BOT_TOKEN).digest('hex');
+      const webhookSecret = process.env.WEBHOOK_SECRET || crypto.randomUUID();
       app.post(webhookPath, (req, res) => {
         const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
         if (secretHeader !== webhookSecret) {

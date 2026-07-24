@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axios from 'axios'
 import Header from '../components/Header'
@@ -103,6 +103,12 @@ function getSubjects(grade, schoolType) {
   }
 
   return []
+}
+
+function ImageThumb({ file }) {
+  const url = useMemo(() => URL.createObjectURL(file), [file])
+  useEffect(() => () => URL.revokeObjectURL(url), [url])
+  return <img src={url} alt="" className="w-16 h-16 object-cover rounded-lg" />
 }
 
 function OrderForm({ user }) {
@@ -491,11 +497,7 @@ function OrderForm({ user }) {
               <div className="flex gap-2 mt-2 flex-wrap">
                 {images.map((img, idx) => (
                   <div key={idx} className="relative">
-                    <img
-                      src={URL.createObjectURL(img)}
-                      alt=""
-                      className="w-16 h-16 object-cover rounded-lg"
-                    />
+                    <ImageThumb file={img} />
                     <button
                       onClick={() => removeImage(idx)}
                       className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"

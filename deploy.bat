@@ -5,7 +5,7 @@ echo ========================================
 echo.
 
 echo [1/3] Adding files...
-git add .
+git add server/ client/ admin/ bot/ backend/ Dockerfile fly.toml .github/ package.json
 
 echo [2/3] Committing...
 set /p msg="Commit message: "

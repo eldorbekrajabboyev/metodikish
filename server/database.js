@@ -197,8 +197,6 @@ async function initDatabase() {
     await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
       ["admin_chat_id", ""]);
     await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
-      ["bot_token", ""]);
-    await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
       ["payment_instructions", "Kartaga pul o'tkazing va chekni yuklang."]);
     await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
       ["min_prep_time_hours", "6"]);

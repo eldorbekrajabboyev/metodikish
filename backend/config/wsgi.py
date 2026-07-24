@@ -25,15 +25,22 @@ def run_bot():
 
     logger.info('Starting Telegram bot...')
 
-    from aiogram import Bot, Dispatcher
-    from aiogram.client.default import DefaultBotProperties
+    try:
+        from aiogram import Bot, Dispatcher
+        from aiogram.client.default import DefaultBotProperties
+    except ImportError:
+        logger.warning('aiogram not installed, skipping bot')
+        return
 
     async def main():
         bot = Bot(token=token, default=DefaultBotProperties(parse_mode='HTML'))
         dp = Dispatcher()
 
-        from bot.handlers import router
-        dp.include_router(router)
+        try:
+            from bot.handlers import router
+            dp.include_router(router)
+        except ImportError:
+            logger.warning('bot.handlers module not found, running empty bot')
 
         await dp.start_polling(bot)
 

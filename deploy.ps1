@@ -4,7 +4,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "[1/3] Adding files..." -ForegroundColor Yellow
-git add .
+git add server/ client/ admin/ bot/ backend/ Dockerfile fly.toml .github/ package.json
 
 $msg = Read-Host "Commit message"
 

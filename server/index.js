@@ -207,8 +207,10 @@ app.get('/api/services', async (req, res) => {
 app.post('/api/services', adminAuth, async (req, res) => {
   try {
     const { name, description, price } = req.body;
+    if (!name || typeof name !== 'string' || name.trim().length < 2) return sendError(res, 400, 'Nomi kamida 2 ta belgi bo\'lishi kerak');
+    if (!price || typeof price !== 'number' || price < 0) return sendError(res, 400, 'Narx noto\'g\'ri');
     const result = await run('INSERT INTO services (name, description, price) VALUES (?, ?, ?)',
-      [name, description, price]);
+      [name.trim().slice(0, 200), (description || '').trim().slice(0, 500), price]);
     res.json(await queryOne('SELECT * FROM services WHERE id = ?', [result.lastInsertRowid]));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -239,8 +241,10 @@ app.get('/api/cards', adminAuth, async (req, res) => {
 app.post('/api/cards', adminAuth, async (req, res) => {
   try {
     const { card_number, card_holder, bank_name } = req.body;
+    if (!card_number || typeof card_number !== 'string' || card_number.replace(/\s/g, '').length < 16) return sendError(res, 400, 'Karta raqami noto\'g\'ri');
+    if (!card_holder || typeof card_holder !== 'string' || card_holder.trim().length < 2) return sendError(res, 400, 'Karta egasi nomi kerak');
     const result = await run('INSERT INTO payment_cards (card_number, card_holder, bank_name) VALUES (?, ?, ?)',
-      [card_number, card_holder, bank_name]);
+      [card_number.trim().slice(0, 20), card_holder.trim().slice(0, 100), (bank_name || '').trim().slice(0, 100)]);
     res.json(await queryOne('SELECT * FROM payment_cards WHERE id = ?', [result.lastInsertRowid]));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -823,7 +827,9 @@ app.get('/api/promo-codes', adminAuth, async (req, res) => {
 app.post('/api/promo-codes', adminAuth, async (req, res) => {
   try {
     const { code, discount_percent, source_name, max_uses } = req.body;
-    if (!code || !discount_percent) return res.status(400).json({ error: 'Kod va chegirma % kiritilishi shart' });
+    if (!code || typeof code !== 'string' || code.trim().length < 3) return sendError(res, 400, 'Kod kamida 3 ta belgi bo\'lishi kerak');
+    if (!discount_percent || typeof discount_percent !== 'number' || discount_percent < 1 || discount_percent > 100) return sendError(res, 400, 'Chegirma % 1-100 orasida bo\'lishi kerak');
+    if (max_uses !== undefined && (typeof max_uses !== 'number' || max_uses < 0)) return sendError(res, 400, 'Maksimal ishlatish soni noto\'g\'ri');
 
     const existing = await queryOne('SELECT id FROM promo_codes WHERE code = ?', [code.toUpperCase().trim()]);
     if (existing) return res.status(400).json({ error: 'Bu kod allaqachon mavjud' });

@@ -111,12 +111,13 @@ CORS_ALLOWED_ORIGINS = config(
     default='http://localhost:3000,http://localhost:5173',
     cast=lambda v: [s.strip() for s in v.split(',')]
 )
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = not DEBUG
 
 TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN', default='')
 TELEGRAM_BOT_USERNAME = config('TELEGRAM_BOT_USERNAME', default='')
 MINI_APP_URL = config('MINI_APP_URL', default='http://localhost:5173')
 RUN_BOT = config('RUN_BOT', default=False, cast=bool)
+DJANGO_ADMIN_URL = config('DJANGO_ADMIN_URL', default='admin/')
 
 if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
