@@ -27,7 +27,6 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 COPY --from=builder --chown=appuser:appuser /app/server ./server
 COPY --from=builder --chown=appuser:appuser /app/client/dist ./client/dist
 COPY --from=builder --chown=appuser:appuser /app/admin/dist ./admin/dist
-COPY --from=builder --chown=appuser:appuser /app/data ./data
 
 RUN mkdir -p /app/uploads && chown appuser:appuser /app/uploads
 

@@ -13,9 +13,9 @@ async function initDatabase() {
   if (dbUrl) {
     db = createClient({ url: dbUrl, authToken: process.env.TURSO_AUTH_TOKEN || undefined });
   } else {
-    const dataDir = path.join(__dirname, '..', 'data');
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    db = createClient({ url: `file:${path.join(dataDir, 'local.db')}` });
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    db = createClient({ url: `file:${path.join(uploadsDir, 'local.db')}` });
   }
 
   // === D2 FIX: All CREATE TABLE first, then ALTER TABLE ===
