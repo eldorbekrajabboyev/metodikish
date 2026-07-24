@@ -17,6 +17,9 @@ class PaymentUploadSerializer(serializers.ModelSerializer):
     def validate_order(self, value):
         if Payment.objects.filter(order=value).exists():
             raise serializers.ValidationError('Payment already exists for this order.')
+        user = self.context['request'].user
+        if not user.is_admin and value.user != user:
+            raise serializers.ValidationError('You do not have permission to upload payment for this order.')
         return value
 
     def validate_amount(self, value):

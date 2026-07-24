@@ -15,6 +15,7 @@ const helmet = require('helmet');
 const Sentry = require('@sentry/node');
 Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
 
+app.set('trust proxy', 1);
 const generalLimiter = rateLimit({ windowMs: 60000, max: 100, message: { error: "Juda ko'p so'rov. 1 daqiqa kuting." } });
 const writeLimiter = rateLimit({ windowMs: 60000, max: 20, message: { error: "Juda ko'p amal. 1 daqiqa kuting." } });
 const promoLimiter = rateLimit({ windowMs: 60000, max: 10, message: { error: "Promo-kod tekshirish limiti. 1 daqiqa kuting." } });
@@ -119,7 +120,26 @@ app.use(cors({
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(express.json({ limit: '1mb' }));
 app.use(generalLimiter);
-app.use('/uploads', telegramAuth, express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  const adminKey = req.headers['x-admin-key'];
+  if (adminKey && adminKey === process.env.ADMIN_API_KEY && process.env.ADMIN_API_KEY) {
+    return next();
+  }
+  if (!req.headers['x-telegram-init-data']) {
+    return res.status(401).json({ error: 'Autentifikatsiya talab qilinadi' });
+  }
+  const result = validateTelegramInitData(req.headers['x-telegram-init-data'], process.env.BOT_TOKEN);
+  if (!result) return res.status(401).json({ error: 'Telegram auth xatosi' });
+  const requestedPath = '/' + req.path.replace(/\\/g, '/');
+  const allowedPrefixes = ['/receipts/', '/images/', '/documents/'];
+  const hasValidPrefix = allowedPrefixes.some(p => requestedPath.startsWith(p));
+  if (!hasValidPrefix) return res.status(403).json({ error: 'Ruxsatsiz' });
+  const basename = path.basename(req.path);
+  if (basename === 'local.db' || basename.endsWith('.db')) {
+    return res.status(403).json({ error: 'Ruxsatsiz' });
+  }
+  next();
+}, express.static(path.join(__dirname, '..', 'uploads')));
 
 const fs = require('fs');
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -244,7 +264,7 @@ app.post('/api/cards', adminAuth, async (req, res) => {
     if (!card_number || typeof card_number !== 'string' || card_number.replace(/\s/g, '').length < 16) return sendError(res, 400, 'Karta raqami noto\'g\'ri');
     if (!card_holder || typeof card_holder !== 'string' || card_holder.trim().length < 2) return sendError(res, 400, 'Karta egasi nomi kerak');
     const result = await run('INSERT INTO payment_cards (card_number, card_holder, bank_name) VALUES (?, ?, ?)',
-      [card_number.trim().slice(0, 20), card_holder.trim().slice(0, 100), (bank_name || '').trim().slice(0, 100)]);
+      ['**** **** **** ' + card_number.trim().slice(-4), card_holder.trim().slice(0, 100), (bank_name || '').trim().slice(0, 100)]);
     res.json(await queryOne('SELECT * FROM payment_cards WHERE id = ?', [result.lastInsertRowid]));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -252,8 +272,17 @@ app.post('/api/cards', adminAuth, async (req, res) => {
 app.put('/api/cards/:id', adminAuth, async (req, res) => {
   try {
     const { card_number, card_holder, bank_name, is_active } = req.body;
-    await run('UPDATE payment_cards SET card_number = ?, card_holder = ?, bank_name = ?, is_active = ? WHERE id = ?',
-      [card_number, card_holder, bank_name, is_active, req.params.id]);
+    const masked = card_number ? ('**** **** **** ' + String(card_number).replace(/\s/g, '').slice(-4)) : undefined;
+    const updates = [];
+    const params = [];
+    if (masked !== undefined) { updates.push('card_number = ?'); params.push(masked); }
+    if (card_holder !== undefined) { updates.push('card_holder = ?'); params.push(String(card_holder).trim().slice(0, 100)); }
+    if (bank_name !== undefined) { updates.push('bank_name = ?'); params.push(String(bank_name).trim().slice(0, 100)); }
+    if (is_active !== undefined) { updates.push('is_active = ?'); params.push(is_active ? 1 : 0); }
+    if (updates.length > 0) {
+      params.push(req.params.id);
+      await run(`UPDATE payment_cards SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
     res.json(await queryOne('SELECT * FROM payment_cards WHERE id = ?', [req.params.id]));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -305,7 +334,8 @@ app.get('/api/orders', adminAuth, async (req, res) => {
 
 app.get('/api/orders/:id', async (req, res) => {
   try {
-    const isAdmin = !!req.headers['x-admin-key'];
+    const adminKey = req.headers['x-admin-key'];
+    const isAdmin = !!(adminKey && adminKey === process.env.ADMIN_API_KEY && process.env.ADMIN_API_KEY);
     const isTelegram = !!req.headers['x-telegram-init-data'];
     if (!isAdmin && !isTelegram) {
       return res.status(401).json({ error: 'Autentifikatsiya talab qilinadi' });
@@ -969,8 +999,24 @@ app.get('*', (req, res) => {
 });
 
 Sentry.setupExpressErrorHandler(app);
-process.on('uncaughtException', (err) => console.error('Uncaught exception:', err));
+process.on('uncaughtException', (err) => { console.error('Uncaught exception:', err); process.exit(1); });
 process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
+
+let httpServer;
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received. Shutting down gracefully...`);
+  if (httpServer) {
+    httpServer.close(() => {
+      console.log('HTTP server closed.');
+      process.exit(0);
+    });
+    setTimeout(() => { console.error('Forced shutdown after timeout.'); process.exit(1); }, 10000);
+  } else {
+    process.exit(0);
+  }
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 async function start() {
   await initDatabase();
@@ -985,7 +1031,7 @@ async function start() {
       }
     }
   } catch (e) { console.error('Promo used_count recalc error:', e.message); }
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📡 API: http://localhost:${PORT}/api`);
   });

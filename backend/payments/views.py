@@ -23,7 +23,7 @@ class PaymentDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         qs = Payment.objects.select_related('order')
-        if not self.request.user.is_staff:
+        if not self.request.user.is_admin:
             qs = qs.filter(order__user=self.request.user)
         return qs
 

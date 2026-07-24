@@ -7,6 +7,11 @@ from rest_framework.permissions import BasePermission
 from django.conf import settings
 
 
+class IsAdminPermission(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_admin)
+
+
 class TelegramInitDataPermission(BasePermission):
     """
     Telegram MiniApp initData tekshiruvi.

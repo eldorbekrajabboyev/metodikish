@@ -2,6 +2,7 @@ from decimal import Decimal
 from django.db import models
 from rest_framework import permissions
 from rest_framework.generics import GenericAPIView
+from accounts.permissions import IsAdminPermission
 from api.utils import success_response
 from orders.models import Order
 from payments.models import Payment
@@ -9,7 +10,7 @@ from .serializers import DashboardStatsSerializer
 
 class DashboardStatsView(GenericAPIView):
     serializer_class = DashboardStatsSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminPermission]
 
     def get(self, request, *args, **kwargs):
         order_stats = Order.objects.aggregate(

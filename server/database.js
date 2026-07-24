@@ -13,9 +13,9 @@ async function initDatabase() {
   if (dbUrl) {
     db = createClient({ url: dbUrl, authToken: process.env.TURSO_AUTH_TOKEN || undefined });
   } else {
-    const uploadsDir = path.join(__dirname, '..', 'uploads');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-    db = createClient({ url: `file:${path.join(uploadsDir, 'local.db')}` });
+    const dataDir = path.join(__dirname, '..', 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    db = createClient({ url: `file:${path.join(dataDir, 'local.db')}` });
   }
 
   // === D2 FIX: All CREATE TABLE first, then ALTER TABLE ===
@@ -189,7 +189,7 @@ async function initDatabase() {
   const cardCount = (await db.execute('SELECT COUNT(*) as count FROM payment_cards')).rows[0].count;
   if (cardCount === 0) {
     await db.execute("INSERT INTO payment_cards (card_number, card_holder, bank_name, is_active) VALUES (?, ?, ?, ?)",
-      ["0000 0000 0000 0000", "Admin", "Bank", 0]);
+      ['**** **** **** 0000', 'Admin', 'Bank', 0]);
   }
 
   const settingsCount = (await db.execute('SELECT COUNT(*) as count FROM settings')).rows[0].count;

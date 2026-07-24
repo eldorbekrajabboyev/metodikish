@@ -4,7 +4,8 @@ from .models import Order
 class OrderCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ('full_name', 'region', 'district', 'school_name', 'home_address', 'subject', 'grade', 'topic', 'price')
+        fields = ('full_name', 'region', 'district', 'school_name', 'home_address', 'subject', 'grade', 'topic')
+        read_only_fields = ('price',)
 
     def _validate_not_empty(self, value, field_name):
         if not value or not value.strip():
@@ -27,11 +28,6 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return self._validate_not_empty(value, 'Grade')
     def validate_topic(self, value):
         return self._validate_not_empty(value, 'Topic')
-
-    def validate_price(self, value):
-        if value <= 0:
-            raise serializers.ValidationError('Price must be greater than 0.')
-        return value
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
