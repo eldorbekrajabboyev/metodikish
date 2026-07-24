@@ -315,6 +315,9 @@ app.get('/api/orders/:id', async (req, res) => {
 app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
   try {
     const { service_id, full_name, address, school, subject, grade, topic, school_type, geographic_level, promo_code_id, promo_discount, use_referral_discount } = req.body;
+    if (!full_name || full_name.length > 65) return res.status(400).json({ error: 'F.I.Sh 1-65 belgi bo\'lishi kerak' });
+    if (!school || school.length > 100) return res.status(400).json({ error: 'Maktab nomi 1-100 belgi bo\'lishi kerak' });
+    if (!topic || topic.length > 400) return res.status(400).json({ error: 'Mavzu 1-400 belgi bo\'lishi kerak' });
     const service = await queryOne('SELECT * FROM services WHERE id = ?', [service_id]);
     if (!service) return res.status(400).json({ error: 'Xizmat topilmadi' });
     const tgUser = await queryOne('SELECT id, referral_balance FROM users WHERE telegram_id = ?', [req.telegramUserId]);
@@ -647,12 +650,12 @@ app.get('/api/settings/channels', async (req, res) => {
   try {
     const row = await queryOne("SELECT value FROM settings WHERE key = 'channels'");
     if (!row || !row.value) return res.json([]);
-    const parts = row.value.split('|').filter(c => c.trim());
-    const channels = [];
-    for (let i = 0; i < parts.length; i += 3) {
-      channels.push({ name: parts[i], link: parts[i + 1] || '', updated_at: parts[i + 2] || '' });
+    try {
+      const channels = JSON.parse(row.value);
+      res.json(Array.isArray(channels) ? channels : []);
+    } catch {
+      res.json([]);
     }
-    res.json(channels);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -663,15 +666,12 @@ app.post('/api/settings/channels', async (req, res) => {
     const row = await queryOne("SELECT value FROM settings WHERE key = 'channels'");
     let channels = [];
     if (row && row.value) {
-      const parts = row.value.split('|').filter(c => c.trim());
-      for (let i = 0; i < parts.length; i += 3) {
-        channels.push({ name: parts[i], link: parts[i + 1] || '', updated_at: parts[i + 2] || '' });
-      }
+      try { channels = JSON.parse(row.value); } catch { channels = []; }
+      if (!Array.isArray(channels)) channels = [];
     }
     if (channels.length >= 5) return res.status(400).json({ error: 'Maksimal 5 ta kanal qo\'shish mumkin' });
     channels.push({ name, link, updated_at: nowUZ() });
-    const value = channels.map(c => `|${c.name}|${c.link}|${c.updated_at}`).join('') + '|';
-    await run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)", ['channels', value, nowUZ()]);
+    await run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)", ['channels', JSON.stringify(channels), nowUZ()]);
     res.json({ success: true, channels });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -681,15 +681,12 @@ app.delete('/api/settings/channels/:index', async (req, res) => {
     const idx = parseInt(req.params.index);
     const row = await queryOne("SELECT value FROM settings WHERE key = 'channels'");
     if (!row || !row.value) return res.status(404).json({ error: 'Kanallar topilmadi' });
-    const parts = row.value.split('|').filter(c => c.trim());
-    const channels = [];
-    for (let i = 0; i < parts.length; i += 3) {
-      channels.push({ name: parts[i], link: parts[i + 1] || '', updated_at: parts[i + 2] || '' });
-    }
+    let channels = [];
+    try { channels = JSON.parse(row.value); } catch { channels = []; }
+    if (!Array.isArray(channels)) channels = [];
     if (idx < 0 || idx >= channels.length) return res.status(400).json({ error: 'Noto\'g\'ri index' });
     channels.splice(idx, 1);
-    const value = channels.length > 0 ? channels.map(c => `|${c.name}|${c.link}|${c.updated_at}`).join('') + '|' : '';
-    await run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)", ['channels', value, nowUZ()]);
+    await run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)", ['channels', JSON.stringify(channels), nowUZ()]);
     res.json({ success: true, channels });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -928,6 +925,10 @@ app.patch('/api/admin/reviews/:id', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 if (fs.existsSync(adminBuildPath)) {
