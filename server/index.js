@@ -15,7 +15,6 @@ const helmet = require('helmet');
 const Sentry = require('@sentry/node');
 Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
 
-app.set('trust proxy', 1);
 const generalLimiter = rateLimit({ windowMs: 60000, max: 100, message: { error: "Juda ko'p so'rov. 1 daqiqa kuting." } });
 const writeLimiter = rateLimit({ windowMs: 60000, max: 20, message: { error: "Juda ko'p amal. 1 daqiqa kuting." } });
 const promoLimiter = rateLimit({ windowMs: 60000, max: 10, message: { error: "Promo-kod tekshirish limiti. 1 daqiqa kuting." } });
@@ -89,6 +88,7 @@ async function deleteOrderImages(orderId) {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // Simple in-memory cache
