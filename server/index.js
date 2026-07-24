@@ -8,6 +8,7 @@ const { initDatabase, queryAll, queryOne, run, withTransaction } = require('./da
 
 const telegramAuth = require('./middleware/telegramAuth');
 const { validateTelegramInitData } = require('./middleware/telegramAuth');
+const adminAuth = require('./middleware/adminAuth');
 const rateLimit = require('express-rate-limit');
 
 const Sentry = require('@sentry/node');
@@ -142,7 +143,7 @@ function setUploadType(type) {
 
 // ==================== API ROUTES ====================
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', adminAuth, async (req, res) => {
   try {
     const users = await queryAll(`
       SELECT u.*,
@@ -187,7 +188,7 @@ app.get('/api/services', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/services', async (req, res) => {
+app.post('/api/services', adminAuth, async (req, res) => {
   try {
     const { name, description, price } = req.body;
     const result = await run('INSERT INTO services (name, description, price) VALUES (?, ?, ?)',
@@ -196,7 +197,7 @@ app.post('/api/services', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/services/:id', async (req, res) => {
+app.put('/api/services/:id', adminAuth, async (req, res) => {
   try {
     const { name, description, price, is_active } = req.body;
     await run('UPDATE services SET name = ?, description = ?, price = ?, is_active = ? WHERE id = ?',
@@ -205,21 +206,21 @@ app.put('/api/services/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/services/:id', async (req, res) => {
+app.delete('/api/services/:id', adminAuth, async (req, res) => {
   try {
     await run('DELETE FROM services WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/cards', async (req, res) => {
+app.get('/api/cards', adminAuth, async (req, res) => {
   try {
     const cards = await queryAll('SELECT * FROM payment_cards ORDER BY id ASC');
     res.json(cards);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/cards', async (req, res) => {
+app.post('/api/cards', adminAuth, async (req, res) => {
   try {
     const { card_number, card_holder, bank_name } = req.body;
     const result = await run('INSERT INTO payment_cards (card_number, card_holder, bank_name) VALUES (?, ?, ?)',
@@ -228,7 +229,7 @@ app.post('/api/cards', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/cards/:id', async (req, res) => {
+app.put('/api/cards/:id', adminAuth, async (req, res) => {
   try {
     const { card_number, card_holder, bank_name, is_active } = req.body;
     await run('UPDATE payment_cards SET card_number = ?, card_holder = ?, bank_name = ?, is_active = ? WHERE id = ?',
@@ -237,14 +238,14 @@ app.put('/api/cards/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/cards/:id', async (req, res) => {
+app.delete('/api/cards/:id', adminAuth, async (req, res) => {
   try {
     await run('DELETE FROM payment_cards WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/orders', async (req, res) => {
+app.get('/api/orders', adminAuth, async (req, res) => {
   try {
     const { status, page = 1, limit = 20, search, region, subject, date_from, date_to } = req.query;
     const conditions = [];
@@ -394,7 +395,7 @@ app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
   }
 });
 
-app.put('/api/orders/:id', async (req, res) => {
+app.put('/api/orders/:id', adminAuth, async (req, res) => {
   try {
     const { status, admin_note } = req.body;
     const updates = [`updated_at = '${nowUZ()}'`];
@@ -451,7 +452,7 @@ app.post('/api/orders/:id/images', telegramAuth, setUploadType('images'), upload
   }
 });
 
-app.post('/api/orders/:id/document', setUploadType('documents'), upload.single('document'), async (req, res) => {
+app.post('/api/orders/:id/document', adminAuth, setUploadType('documents'), upload.single('document'), async (req, res) => {
   try {
     await run('UPDATE orders SET document_file = ?, status = ? WHERE id = ?',
       [`/uploads/documents/${req.file.filename}`, 'ready', parseInt(req.params.id)]);
@@ -462,7 +463,7 @@ app.post('/api/orders/:id/document', setUploadType('documents'), upload.single('
   }
 });
 
-app.put('/api/orders/:id/confirm-payment', async (req, res) => {
+app.put('/api/orders/:id/confirm-payment', adminAuth, async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
     const order = await queryOne(`
@@ -499,7 +500,7 @@ app.put('/api/orders/:id/confirm-payment', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/orders/:id/reject-payment', async (req, res) => {
+app.put('/api/orders/:id/reject-payment', adminAuth, async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
     const { reason } = req.body;
@@ -550,7 +551,7 @@ app.post('/api/orders/:id/auto-cancel', telegramAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/orders/:id/send', async (req, res) => {
+app.put('/api/orders/:id/send', adminAuth, async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
     const order = await queryOne(`
@@ -580,7 +581,7 @@ app.put('/api/orders/:id/send', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', adminAuth, async (req, res) => {
   try {
     const schoolTypeFilter = req.query.school_type;
     const stParams = schoolTypeFilter ? [schoolTypeFilter] : [];
@@ -635,7 +636,7 @@ app.get('/api/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/settings', async (req, res) => {
+app.put('/api/settings', adminAuth, async (req, res) => {
   try {
     const allowedKeys = ['bot_username', 'channels', 'referral_discount_amount', 'referral_reward_amount'];
     for (const [key, value] of Object.entries(req.body)) {
@@ -659,7 +660,7 @@ app.get('/api/settings/channels', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/settings/channels', async (req, res) => {
+app.post('/api/settings/channels', adminAuth, async (req, res) => {
   try {
     const { name, link } = req.body;
     if (!name || !link) return res.status(400).json({ error: 'Nomi va link kiritilishi shart' });
@@ -676,7 +677,7 @@ app.post('/api/settings/channels', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/settings/channels/:index', async (req, res) => {
+app.delete('/api/settings/channels/:index', adminAuth, async (req, res) => {
   try {
     const idx = parseInt(req.params.index);
     const row = await queryOne("SELECT value FROM settings WHERE key = 'channels'");
@@ -732,7 +733,7 @@ app.get('/api/user/referral-info/:telegram_id', telegramAuth, async (req, res) =
 });
 
 // Broadcast message to all users
-app.post('/api/broadcast', async (req, res) => {
+app.post('/api/broadcast', adminAuth, async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || !message.trim()) return res.status(400).json({ error: 'Xabar bo\'sh bo\'lmasligi kerak' });
@@ -795,7 +796,7 @@ app.post('/api/promo-codes/validate', promoLimiter, telegramAuth, async (req, re
 });
 
 // Admin: list promo codes
-app.get('/api/promo-codes', async (req, res) => {
+app.get('/api/promo-codes', adminAuth, async (req, res) => {
   try {
     const codes = await queryAll('SELECT * FROM promo_codes ORDER BY id DESC');
     res.json(codes);
@@ -803,7 +804,7 @@ app.get('/api/promo-codes', async (req, res) => {
 });
 
 // Admin: create promo code
-app.post('/api/promo-codes', async (req, res) => {
+app.post('/api/promo-codes', adminAuth, async (req, res) => {
   try {
     const { code, discount_percent, source_name, max_uses } = req.body;
     if (!code || !discount_percent) return res.status(400).json({ error: 'Kod va chegirma % kiritilishi shart' });
@@ -821,7 +822,7 @@ app.post('/api/promo-codes', async (req, res) => {
 });
 
 // Admin: toggle promo code active/inactive
-app.put('/api/promo-codes/:id', async (req, res) => {
+app.put('/api/promo-codes/:id', adminAuth, async (req, res) => {
   try {
     const { is_active } = req.body;
     const promo = await queryOne('SELECT * FROM promo_codes WHERE id = ?', [req.params.id]);
@@ -834,7 +835,7 @@ app.put('/api/promo-codes/:id', async (req, res) => {
 });
 
 // Admin: delete promo code
-app.delete('/api/promo-codes/:id', async (req, res) => {
+app.delete('/api/promo-codes/:id', adminAuth, async (req, res) => {
   try {
     await run('DELETE FROM promo_code_usage WHERE promo_code_id = ?', [req.params.id]);
     await run('DELETE FROM promo_codes WHERE id = ?', [req.params.id]);
@@ -899,7 +900,7 @@ app.post('/api/reviews', writeLimiter, telegramAuth, async (req, res) => {
 });
 
 // Admin: get all reviews
-app.get('/api/admin/reviews', async (req, res) => {
+app.get('/api/admin/reviews', adminAuth, async (req, res) => {
   try {
     const reviews = await queryAll(
       `SELECT r.*, u.first_name, u.username, o.order_code
@@ -915,7 +916,7 @@ app.get('/api/admin/reviews', async (req, res) => {
 });
 
 // Admin: publish or reject review
-app.patch('/api/admin/reviews/:id', async (req, res) => {
+app.patch('/api/admin/reviews/:id', adminAuth, async (req, res) => {
   try {
     const { status } = req.body; // 'published' | 'rejected'
     if (!['published', 'rejected'].includes(status))

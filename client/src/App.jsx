@@ -14,6 +14,15 @@ const api = axios.create({
   baseURL: '/api',
 })
 
+api.interceptors.request.use((config) => {
+  const tg = window.Telegram?.WebApp
+  if (tg?.initData) {
+    config.headers['X-Telegram-Init-Data'] = tg.initData
+  }
+  return config
+})
+
+// Global axios ga ham header qo'shish (sahifalarda to'g'ridan-to'g'ri ishlatiladi)
 axios.interceptors.request.use((config) => {
   const tg = window.Telegram?.WebApp
   if (tg?.initData) {
