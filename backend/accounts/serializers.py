@@ -34,5 +34,5 @@ class UserCreateSerializer(serializers.Serializer):
 class UserReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'telegram_id', 'username', 'first_name', 'last_name', 'phone_number', 'is_admin', 'created_at', 'updated_at')
+        fields = ('id', 'telegram_id', 'username', 'first_name', 'last_name', 'phone_number', 'created_at', 'updated_at')
         read_only_fields = fields

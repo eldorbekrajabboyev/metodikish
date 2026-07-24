@@ -81,20 +81,6 @@ function Settings() {
         {/* Bot Settings */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6 dark:bg-gray-800 dark:border-gray-700/50">
           <h2 className="text-lg font-semibold dark:text-white">🤖 Bot sozlamalari</h2>
-          
-          {/* Bot Token */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              Bot Token
-            </label>
-            <input
-              type="password"
-              value={settings.bot_token || ''}
-              onChange={(e) => handleChange('bot_token', e.target.value)}
-              placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
-            />
-          </div>
 
           {/* Bot Username */}
           <div>

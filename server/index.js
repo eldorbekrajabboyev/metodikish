@@ -10,6 +10,7 @@ const telegramAuth = require('./middleware/telegramAuth');
 const { validateTelegramInitData } = require('./middleware/telegramAuth');
 const adminAuth = require('./middleware/adminAuth');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 const Sentry = require('@sentry/node');
 Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
@@ -17,6 +18,8 @@ Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
 const generalLimiter = rateLimit({ windowMs: 60000, max: 100, message: { error: "Juda ko'p so'rov. 1 daqiqa kuting." } });
 const writeLimiter = rateLimit({ windowMs: 60000, max: 20, message: { error: "Juda ko'p amal. 1 daqiqa kuting." } });
 const promoLimiter = rateLimit({ windowMs: 60000, max: 10, message: { error: "Promo-kod tekshirish limiti. 1 daqiqa kuting." } });
+const broadcastLimiter = rateLimit({ windowMs: 300000, max: 5, message: { error: "Xabar yuborish limiti. 5 daqiqa kuting." } });
+const statsLimiter = rateLimit({ windowMs: 60000, max: 30, message: { error: "Statistika limiti. 1 daqiqa kuting." } });
 
 function nowUZ() {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tashkent' });
@@ -27,6 +30,10 @@ function maskCardNumber(cardNumber) {
   const cleaned = cardNumber.replace(/\s/g, '');
   if (cleaned.length < 4) return '****';
   return '**** **** **** ' + cleaned.slice(-4);
+}
+
+function sendError(res, status, message) {
+  return res.status(status).json({ error: message });
 }
 
 function toISODate(dateStr) {
@@ -102,16 +109,17 @@ app.use(cors({
       'https://metodikish.fly.dev',
       'https://metodikish.vercel.app',
     ];
-    if (!origin || allowed.includes(origin)) {
+    if (origin && allowed.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('CORS ruxsatsiz'));
     }
   }
 }));
-app.use(express.json());
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(express.json({ limit: '1mb' }));
 app.use(generalLimiter);
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/uploads', telegramAuth, express.static(path.join(__dirname, '..', 'uploads')));
 
 const fs = require('fs');
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -137,10 +145,11 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|pdf|doc|docx/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    cb(null, ext || mime);
+    const allowedExts = /jpeg|jpg|png|gif|pdf|doc|docx/;
+    const allowedMimes = /image\/jpeg|image\/jpg|image\/png|image\/gif|application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document/;
+    const ext = allowedExts.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowedMimes.test(file.mimetype);
+    cb(null, ext && mime);
   }
 });
 
@@ -158,7 +167,7 @@ app.get('/api/users', adminAuth, async (req, res) => {
       FROM users u ORDER BY u.created_at DESC
     `);
     res.json(users);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/users/:telegram_id', telegramAuth, async (req, res) => {
@@ -169,7 +178,7 @@ app.get('/api/users/:telegram_id', telegramAuth, async (req, res) => {
     const user = await queryOne('SELECT * FROM users WHERE telegram_id = ?', [parseInt(req.params.telegram_id)]);
     if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
     res.json(user);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.post('/api/users', writeLimiter, telegramAuth, async (req, res) => {
@@ -185,14 +194,14 @@ app.post('/api/users', writeLimiter, telegramAuth, async (req, res) => {
     const result = await run('INSERT INTO users (telegram_id, username, first_name, last_name) VALUES (?, ?, ?, ?)',
       [telegram_id, username, first_name, last_name]);
     res.json(await queryOne('SELECT * FROM users WHERE id = ?', [result.lastInsertRowid]));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/services', async (req, res) => {
   try {
     const services = await queryAll('SELECT * FROM services ORDER BY id ASC');
     res.json(services);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.post('/api/services', adminAuth, async (req, res) => {
@@ -201,7 +210,7 @@ app.post('/api/services', adminAuth, async (req, res) => {
     const result = await run('INSERT INTO services (name, description, price) VALUES (?, ?, ?)',
       [name, description, price]);
     res.json(await queryOne('SELECT * FROM services WHERE id = ?', [result.lastInsertRowid]));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.put('/api/services/:id', adminAuth, async (req, res) => {
@@ -210,21 +219,21 @@ app.put('/api/services/:id', adminAuth, async (req, res) => {
     await run('UPDATE services SET name = ?, description = ?, price = ?, is_active = ? WHERE id = ?',
       [name, description, price, is_active, req.params.id]);
     res.json(await queryOne('SELECT * FROM services WHERE id = ?', [req.params.id]));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.delete('/api/services/:id', adminAuth, async (req, res) => {
   try {
     await run('DELETE FROM services WHERE id = ?', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/cards', adminAuth, async (req, res) => {
   try {
     const cards = await queryAll('SELECT * FROM payment_cards ORDER BY id ASC');
     res.json(cards.map(c => ({ ...c, card_number: maskCardNumber(c.card_number) })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.post('/api/cards', adminAuth, async (req, res) => {
@@ -233,7 +242,7 @@ app.post('/api/cards', adminAuth, async (req, res) => {
     const result = await run('INSERT INTO payment_cards (card_number, card_holder, bank_name) VALUES (?, ?, ?)',
       [card_number, card_holder, bank_name]);
     res.json(await queryOne('SELECT * FROM payment_cards WHERE id = ?', [result.lastInsertRowid]));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.put('/api/cards/:id', adminAuth, async (req, res) => {
@@ -242,14 +251,14 @@ app.put('/api/cards/:id', adminAuth, async (req, res) => {
     await run('UPDATE payment_cards SET card_number = ?, card_holder = ?, bank_name = ?, is_active = ? WHERE id = ?',
       [card_number, card_holder, bank_name, is_active, req.params.id]);
     res.json(await queryOne('SELECT * FROM payment_cards WHERE id = ?', [req.params.id]));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.delete('/api/cards/:id', adminAuth, async (req, res) => {
   try {
     await run('DELETE FROM payment_cards WHERE id = ?', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/orders', adminAuth, async (req, res) => {
@@ -287,7 +296,7 @@ app.get('/api/orders', adminAuth, async (req, res) => {
     const countResult = await queryOne(`SELECT COUNT(*) as count FROM orders o LEFT JOIN users u ON o.user_id = u.id ${whereClause}`, params.slice(0, params.length - 2));
     const total = countResult ? countResult.count : 0;
     res.json({ orders, total, page: parseInt(page), limit: parseInt(limit) });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/orders/:id', async (req, res) => {
@@ -317,7 +326,7 @@ app.get('/api/orders/:id', async (req, res) => {
     }
     order.images = await queryAll('SELECT * FROM order_images WHERE order_id = ?', [order.id]);
     res.json(fixOrderDates(order));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
@@ -398,17 +407,17 @@ app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
       return res.status(409).json({ error: 'Promo-kod allaqachon ishlatilgan' });
     }
     console.error('[POST /api/orders] Error:', err);
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, 'Server xatosi');
   }
 });
 
 app.put('/api/orders/:id', adminAuth, async (req, res) => {
   try {
     const { status, admin_note } = req.body;
-    const updates = [`updated_at = '${nowUZ()}'`];
-    const params = [];
+    const updates = ['updated_at = ?'];
+    const params = [nowUZ()];
     if (status) { updates.push('status = ?'); params.push(status); }
-    if (status === 'ready') { updates.push(`ready_at = '${nowUZ()}'`); }
+    if (status === 'ready') { updates.push('ready_at = ?'); params.push(nowUZ()); }
     if (admin_note !== undefined) { updates.push('admin_note = ?'); params.push(admin_note); }
     params.push(parseInt(req.params.id));
     await run(`UPDATE orders SET ${updates.join(', ')} WHERE id = ?`, params);
@@ -422,7 +431,7 @@ app.put('/api/orders/:id', adminAuth, async (req, res) => {
     `, [parseInt(req.params.id)]);
     order.images = await queryAll('SELECT * FROM order_images WHERE order_id = ?', [order.id]);
     res.json(fixOrderDates(order));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.post('/api/orders/:id/receipt', telegramAuth, setUploadType('receipts'), upload.single('receipt'), async (req, res) => {
@@ -431,12 +440,12 @@ app.post('/api/orders/:id/receipt', telegramAuth, setUploadType('receipts'), upl
     if (!order) return res.status(404).json({ error: 'Buyurtma topilmadi' });
     const dbUser = await queryOne('SELECT id FROM users WHERE telegram_id = ?', [req.telegramUserId]);
     if (!dbUser || dbUser.id !== order.user_id) return res.status(403).json({ error: 'Ruxsatsiz' });
-    await run(`UPDATE orders SET payment_receipt = ?, status = ?, receipt_uploaded_at = '${nowUZ()}' WHERE id = ?`,
-      [`/uploads/receipts/${req.file.filename}`, 'pending_confirmation', parseInt(req.params.id)]);
+    await run(`UPDATE orders SET payment_receipt = ?, status = ?, receipt_uploaded_at = ? WHERE id = ?`,
+      [`/uploads/receipts/${req.file.filename}`, 'pending_confirmation', nowUZ(), parseInt(req.params.id)]);
     res.json({ success: true, path: `/uploads/receipts/${req.file.filename}` });
   } catch (err) {
     if (req.file) { const fp = path.join(uploadsDir, 'receipts', req.file.filename); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, 'Server xatosi');
   }
 });
 
@@ -455,7 +464,7 @@ app.post('/api/orders/:id/images', telegramAuth, setUploadType('images'), upload
     res.json(images);
   } catch (err) {
     if (req.files) { for (const f of req.files) { const fp = path.join(uploadsDir, 'images', f.filename); if (fs.existsSync(fp)) fs.unlinkSync(fp); } }
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, 'Server xatosi');
   }
 });
 
@@ -466,7 +475,7 @@ app.post('/api/orders/:id/document', adminAuth, setUploadType('documents'), uplo
     res.json({ success: true, path: `/uploads/documents/${req.file.filename}` });
   } catch (err) {
     if (req.file) { const fp = path.join(uploadsDir, 'documents', req.file.filename); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, 'Server xatosi');
   }
 });
 
@@ -504,7 +513,7 @@ app.put('/api/orders/:id/confirm-payment', adminAuth, async (req, res) => {
       ).catch(err => console.error('Failed to send notification:', err.message));
     }
     res.json({ success: true, queuePosition });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.put('/api/orders/:id/reject-payment', adminAuth, async (req, res) => {
@@ -533,7 +542,7 @@ app.put('/api/orders/:id/reject-payment', adminAuth, async (req, res) => {
       ).catch(err => console.error('Failed to send rejection notification:', err.message));
     }
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.post('/api/orders/:id/auto-cancel', telegramAuth, async (req, res) => {
@@ -555,7 +564,7 @@ app.post('/api/orders/:id/auto-cancel', telegramAuth, async (req, res) => {
       await run('UPDATE users SET referral_balance = referral_balance + ? WHERE id = ?', [order.referral_discount, order.user_id]);
     }
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.put('/api/orders/:id/send', adminAuth, async (req, res) => {
@@ -585,10 +594,10 @@ app.put('/api/orders/:id/send', adminAuth, async (req, res) => {
       }
     }
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
-app.get('/api/stats', adminAuth, async (req, res) => {
+app.get('/api/stats', adminAuth, statsLimiter, async (req, res) => {
   try {
     const schoolTypeFilter = req.query.school_type;
     const stParams = schoolTypeFilter ? [schoolTypeFilter] : [];
@@ -629,7 +638,7 @@ app.get('/api/stats', adminAuth, async (req, res) => {
     } catch (e) {}
 
     res.json({ totalOrders, pendingPayment, pendingConfirmation, inProgress, ready, sent, totalUsers, totalRevenue, subjectStats, gradeStats, regionStats, recentOrders, dailyChart, weeklyChart });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/settings', async (req, res) => {
@@ -640,7 +649,7 @@ app.get('/api/settings', async (req, res) => {
     delete obj.bot_token;
     delete obj.admin_chat_id;
     res.json(obj);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.put('/api/settings', adminAuth, async (req, res) => {
@@ -648,10 +657,10 @@ app.put('/api/settings', adminAuth, async (req, res) => {
     const allowedKeys = ['bot_username', 'channels', 'referral_discount_amount', 'referral_reward_amount'];
     for (const [key, value] of Object.entries(req.body)) {
       if (!allowedKeys.includes(key)) continue;
-      await run(`UPDATE settings SET value = ?, updated_at = '${nowUZ()}' WHERE key = ?`, [value, key]);
+      await run(`UPDATE settings SET value = ?, updated_at = ? WHERE key = ?`, [value, nowUZ(), key]);
     }
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/settings/channels', async (req, res) => {
@@ -664,7 +673,7 @@ app.get('/api/settings/channels', async (req, res) => {
     } catch {
       res.json([]);
     }
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.post('/api/settings/channels', adminAuth, async (req, res) => {
@@ -681,7 +690,7 @@ app.post('/api/settings/channels', adminAuth, async (req, res) => {
     channels.push({ name, link, updated_at: nowUZ() });
     await run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)", ['channels', JSON.stringify(channels), nowUZ()]);
     res.json({ success: true, channels });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.delete('/api/settings/channels/:index', adminAuth, async (req, res) => {
@@ -696,7 +705,7 @@ app.delete('/api/settings/channels/:index', adminAuth, async (req, res) => {
     channels.splice(idx, 1);
     await run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)", ['channels', JSON.stringify(channels), nowUZ()]);
     res.json({ success: true, channels });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/user/orders/:telegram_id', telegramAuth, async (req, res) => {
@@ -711,14 +720,14 @@ app.get('/api/user/orders/:telegram_id', telegramAuth, async (req, res) => {
       WHERE o.user_id = ? ORDER BY o.created_at DESC
     `, [user.id]);
     res.json(orders.map(fixOrderDates));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/user/active-cards', async (req, res) => {
   try {
     const cards = await queryAll('SELECT * FROM payment_cards WHERE is_active = 1');
     res.json(cards.map(c => ({ ...c, card_number: maskCardNumber(c.card_number) })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 app.get('/api/user/referral-info/:telegram_id', telegramAuth, async (req, res) => {
@@ -736,11 +745,11 @@ app.get('/api/user/referral-info/:telegram_id', telegramAuth, async (req, res) =
       referred_count: referredCount ? referredCount.cnt : 0,
       referral_code: req.params.telegram_id
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // Broadcast message to all users
-app.post('/api/broadcast', adminAuth, async (req, res) => {
+app.post('/api/broadcast', adminAuth, broadcastLimiter, async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || !message.trim()) return res.status(400).json({ error: 'Xabar bo\'sh bo\'lmasligi kerak' });
@@ -756,7 +765,7 @@ app.post('/api/broadcast', adminAuth, async (req, res) => {
       }
     }
     res.json({ success: true, total: users.length, sent, failed });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // Get unique filter options for orders (extract region from address)
@@ -765,7 +774,7 @@ app.get('/api/filters', async (req, res) => {
     const regions = await queryAll("SELECT DISTINCT SUBSTR(address, 1, INSTR(address, ',') - 1) as region FROM orders WHERE address IS NOT NULL AND address != '' AND INSTR(address, ',') > 0 ORDER BY region");
     const subjects = await queryAll("SELECT DISTINCT subject FROM orders WHERE subject IS NOT NULL AND subject != '' ORDER BY subject");
     res.json({ regions: regions.map(r => r.region), subjects: subjects.map(s => s.subject) });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // ═══════════════════════════════════════════════
@@ -799,7 +808,7 @@ app.post('/api/promo-codes/validate', promoLimiter, telegramAuth, async (req, re
     }
 
     res.json({ success: true, promo_code_id: promo.id, discount_percent: promo.discount_percent, source_name: promo.source_name });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // Admin: list promo codes
@@ -807,7 +816,7 @@ app.get('/api/promo-codes', adminAuth, async (req, res) => {
   try {
     const codes = await queryAll('SELECT * FROM promo_codes ORDER BY id DESC');
     res.json(codes);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // Admin: create promo code
@@ -825,7 +834,7 @@ app.post('/api/promo-codes', adminAuth, async (req, res) => {
     );
     const promo = await queryOne('SELECT * FROM promo_codes WHERE id = ?', [result.lastInsertRowid]);
     res.json(promo);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // Admin: toggle promo code active/inactive
@@ -838,7 +847,7 @@ app.put('/api/promo-codes/:id', adminAuth, async (req, res) => {
     await run('UPDATE promo_codes SET is_active = ? WHERE id = ?', [is_active ? 1 : 0, req.params.id]);
     const updated = await queryOne('SELECT * FROM promo_codes WHERE id = ?', [req.params.id]);
     res.json(updated);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // Admin: delete promo code
@@ -847,7 +856,7 @@ app.delete('/api/promo-codes/:id', adminAuth, async (req, res) => {
     await run('DELETE FROM promo_code_usage WHERE promo_code_id = ?', [req.params.id]);
     await run('DELETE FROM promo_codes WHERE id = ?', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
 // Serve built frontend files

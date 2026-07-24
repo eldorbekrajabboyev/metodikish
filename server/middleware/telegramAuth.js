@@ -24,7 +24,9 @@ function validateTelegramInitData(initData, botToken) {
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-  if (calculatedHash !== hash) return null;
+  // Constant-time comparison to prevent timing attacks
+  if (!hash || calculatedHash.length !== hash.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(calculatedHash, 'hex'), Buffer.from(hash, 'hex'))) return null;
 
   // Check auth_date freshness
   const authDate = parseInt(params.get('auth_date') || '0', 10);

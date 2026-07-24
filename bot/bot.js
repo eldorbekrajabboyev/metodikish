@@ -158,6 +158,8 @@ bot.on('callback_query', async (query) => {
       service_id: serviceId,
       service_name: service.name,
       service_price: service.price,
+      _ts: Date.now(),
+      _ttl: 1800000, // 30 minutes
     };
 
     bot.sendMessage(
@@ -170,6 +172,27 @@ bot.on('callback_query', async (query) => {
 
   bot.answerCallbackQuery(query.id);
 });
+
+// ==================== STATE CLEANUP ====================
+
+function cleanupExpiredStates() {
+  const now = Date.now();
+  if (global.userStates) {
+    for (const [key, state] of Object.entries(global.userStates)) {
+      if (state._ts && now - state._ts > (state._ttl || 1800000)) {
+        delete global.userStates[key];
+      }
+    }
+  }
+  if (global.receiptStates) {
+    for (const [key, state] of Object.entries(global.receiptStates)) {
+      if (state._ts && now - state._ts > (state._ttl || 1800000)) {
+        delete global.receiptStates[key];
+      }
+    }
+  }
+}
+setInterval(cleanupExpiredStates, 300000); // Har 5 daqiqada tozalash
 
 // ==================== ORDER FLOW MESSAGES ====================
 
@@ -306,7 +329,7 @@ bot.on('callback_query', async (query) => {
   if (data.startsWith('send_receipt_')) {
     const orderId = data.split('_')[2];
     if (!global.receiptStates) global.receiptStates = {};
-    global.receiptStates[query.from.id] = { order_id: orderId };
+    global.receiptStates[query.from.id] = { order_id: orderId, _ts: Date.now(), _ttl: 1800000 };
     bot.sendMessage(chatId, '📸 Chek rasmini yuboring (rasm sifatida):');
     bot.answerCallbackQuery(query.id);
   }
