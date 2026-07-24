@@ -1,6 +1,14 @@
 from rest_framework import serializers
 from .models import Payment
 
+def mask_card_number(card_number):
+    if not card_number:
+        return '****'
+    cleaned = card_number.replace(' ', '')
+    if len(cleaned) < 4:
+        return '****'
+    return '**** **** **** ' + cleaned[-4:]
+
 class PaymentUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
@@ -31,8 +39,12 @@ class PaymentUploadSerializer(serializers.ModelSerializer):
 
 class PaymentReadSerializer(serializers.ModelSerializer):
     order_number = serializers.CharField(source='order.order_number', read_only=True)
+    card_number = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
         fields = ('id', 'order', 'order_number', 'amount', 'card_number', 'receipt_image', 'status', 'admin_comment', 'created_at', 'updated_at')
         read_only_fields = fields
+
+    def get_card_number(self, obj):
+        return mask_card_number(obj.card_number)

@@ -23,10 +23,12 @@ async function deleteOrderImages(orderId) {
 async function getChannels() {
   const row = await queryOne("SELECT value FROM settings WHERE key = 'channels'");
   if (!row || !row.value) return [];
-  return row.value.split('|').filter(c => c.trim()).reduce((acc, _, i, arr) => {
-    if (i % 3 === 0) acc.push({ name: arr[i], link: arr[i + 1] || '', updated_at: arr[i + 2] || '' });
-    return acc;
-  }, []);
+  try {
+    const parsed = JSON.parse(row.value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 function normalizeChannelLink(link) {
@@ -60,14 +62,15 @@ async function startBot(app) {
   }
 
   const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
-  const webhookPath = `/webhook/${BOT_TOKEN}`;
+  const crypto = require('crypto');
+  const webhookPath = `/webhook/${crypto.randomUUID()}`;
   
   let bot;
 
   try {
     const tempBot = new TelegramBot(BOT_TOKEN);
     const webhookInfo = await tempBot.getWebHookInfo();
-    console.log(`🔍 Current webhook: ${webhookInfo.url || 'none'}`);
+    console.log(`🔍 Current webhook: ${webhookInfo.url ? 'set (hidden)' : 'none'}`);
     if (webhookInfo.url) {
       await tempBot.deleteWebHook();
       console.log('🗑️ Deleted old webhook');
@@ -91,7 +94,7 @@ async function startBot(app) {
       });
       const result = await bot.setWebHook(`${WEBHOOK_URL}${webhookPath}`, { secret_token: webhookSecret });
       if (result) {
-        console.log(`🤖 Bot webhook set: ${WEBHOOK_URL}${webhookPath}`);
+        console.log(`🤖 Bot webhook set: ${webhookPath}`);
       } else {
         throw new Error('setWebHook returned false');
       }
@@ -329,8 +332,8 @@ async function startBot(app) {
 
   bot.onText(/\/admin/, async (msg) => {
     const chatId = msg.chat.id;
-    const settings = await queryOne("SELECT value FROM settings WHERE key = 'admin_chat_id'");
-    if (settings && String(msg.from.id) === settings.value) {
+    const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '';
+    if (ADMIN_CHAT_ID && String(msg.from.id) === ADMIN_CHAT_ID) {
       const totalOrders = (await queryOne('SELECT COUNT(*) as count FROM orders')).count;
       const pendingPayment = (await queryOne("SELECT COUNT(*) as count FROM orders WHERE status = 'pending_payment'")).count;
       const pendingConfirmation = (await queryOne("SELECT COUNT(*) as count FROM orders WHERE status = 'pending_confirmation'")).count;

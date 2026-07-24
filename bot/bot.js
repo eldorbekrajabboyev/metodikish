@@ -291,7 +291,8 @@ async function createOrder(chatId, telegramId, state) {
     // Reset state
     delete global.userStates[telegramId];
   } catch (err) {
-    console.error('Order creation error:', err);
+    const safeMsg = err.message ? err.message.replace(/bot\d+:[^/]+/g, 'bot***:REDACTED') : 'unknown';
+    console.error('Order creation error:', safeMsg);
     bot.sendMessage(chatId, '❌ Xatolik yuz berdi. Qaytadan urinib ko\'ring.');
     delete global.userStates[telegramId];
   }
@@ -322,7 +323,8 @@ bot.on('photo', async (msg) => {
 
   try {
     const file = await bot.getFile(photo.file_id);
-    const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+    const botToken = process.env.BOT_TOKEN;
+    const fileUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`;
 
     // Download and upload to server
     const response = await axios.get(fileUrl, { responseType: 'stream' });
@@ -352,7 +354,8 @@ bot.on('photo', async (msg) => {
 
     delete global.receiptStates[telegramId];
   } catch (err) {
-    console.error('Receipt upload error:', err);
+    const safeMsg = err.message ? err.message.replace(/bot\d+:[^/]+/g, 'bot***:REDACTED') : 'unknown';
+    console.error('Receipt upload error:', safeMsg);
     bot.sendMessage(chatId, '❌ Chek yuklashda xatolik. Qaytadan urinib ko\'ring.');
   }
 });

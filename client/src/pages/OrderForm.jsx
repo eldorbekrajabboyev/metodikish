@@ -331,6 +331,7 @@ function OrderForm({ user }) {
             type="text"
             value={form.full_name}
             onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+            maxLength={65}
             placeholder="Masalan: Karimov Valijon"
             className="w-full border border-tg-text/10 rounded-2xl px-4 py-3.5 text-lg bg-tg-secondary focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             autoFocus
@@ -381,6 +382,7 @@ function OrderForm({ user }) {
               type="text"
               value={form.school}
               onChange={(e) => setForm({ ...form, school: e.target.value })}
+              maxLength={100}
               placeholder="Masalan: 1-maktab"
               className="w-full border border-tg-text/10 rounded-2xl px-4 py-3.5 text-lg bg-tg-secondary focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             />
@@ -465,6 +467,7 @@ function OrderForm({ user }) {
             type="text"
             value={form.topic}
             onChange={(e) => setForm({ ...form, topic: e.target.value })}
+            maxLength={400}
             placeholder="Masalan: Kasr sonlar"
             className="w-full border border-tg-text/10 rounded-2xl px-4 py-3.5 text-lg bg-tg-secondary focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             autoFocus

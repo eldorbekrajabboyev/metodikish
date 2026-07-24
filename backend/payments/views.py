@@ -22,7 +22,10 @@ class PaymentDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Payment.objects.select_related('order')
+        qs = Payment.objects.select_related('order')
+        if not self.request.user.is_staff:
+            qs = qs.filter(order__user=self.request.user)
+        return qs
 
     def retrieve(self, request, *args, **kwargs):
         try:

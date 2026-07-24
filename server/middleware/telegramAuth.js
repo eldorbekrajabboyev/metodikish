@@ -48,8 +48,7 @@ function validateTelegramInitData(initData, botToken) {
 function telegramAuth(req, res, next) {
   const botToken = process.env.BOT_TOKEN;
   if (!botToken) {
-    // BOT_TOKEN not set — skip validation in dev
-    return next();
+    return res.status(401).json({ error: 'Server konfiguratsiya xatosi: BOT_TOKEN mavjud emas' });
   }
 
   const initData = req.headers['x-telegram-init-data'];

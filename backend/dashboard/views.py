@@ -9,7 +9,7 @@ from .serializers import DashboardStatsSerializer
 
 class DashboardStatsView(GenericAPIView):
     serializer_class = DashboardStatsSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def get(self, request, *args, **kwargs):
         order_stats = Order.objects.aggregate(

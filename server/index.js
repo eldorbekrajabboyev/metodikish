@@ -22,6 +22,13 @@ function nowUZ() {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tashkent' });
 }
 
+function maskCardNumber(cardNumber) {
+  if (!cardNumber || typeof cardNumber !== 'string') return '****';
+  const cleaned = cardNumber.replace(/\s/g, '');
+  if (cleaned.length < 4) return '****';
+  return '**** **** **** ' + cleaned.slice(-4);
+}
+
 function toISODate(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return dateStr;
   if (dateStr.includes('T')) return dateStr;
@@ -216,7 +223,7 @@ app.delete('/api/services/:id', adminAuth, async (req, res) => {
 app.get('/api/cards', adminAuth, async (req, res) => {
   try {
     const cards = await queryAll('SELECT * FROM payment_cards ORDER BY id ASC');
-    res.json(cards);
+    res.json(cards.map(c => ({ ...c, card_number: maskCardNumber(c.card_number) })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -710,7 +717,7 @@ app.get('/api/user/orders/:telegram_id', telegramAuth, async (req, res) => {
 app.get('/api/user/active-cards', async (req, res) => {
   try {
     const cards = await queryAll('SELECT * FROM payment_cards WHERE is_active = 1');
-    res.json(cards);
+    res.json(cards.map(c => ({ ...c, card_number: maskCardNumber(c.card_number) })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
