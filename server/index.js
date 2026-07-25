@@ -13,6 +13,7 @@ const { validateTelegramInitData } = require('./middleware/telegramAuth');
 const adminAuth = require('./middleware/adminAuth');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const morgan = require('morgan');
 
 const Sentry = require('@sentry/node');
 Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
@@ -23,8 +24,18 @@ const promoLimiter = rateLimit({ windowMs: 60000, max: 10, message: { error: "Pr
 const broadcastLimiter = rateLimit({ windowMs: 300000, max: 5, message: { error: "Xabar yuborish limiti. 5 daqiqa kuting." } });
 const statsLimiter = rateLimit({ windowMs: 60000, max: 30, message: { error: "Statistika limiti. 1 daqiqa kuting." } });
 
-const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.ADMIN_API_KEY || 'fallback-change-this';
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.ADMIN_API_KEY;
+if (!ADMIN_JWT_SECRET) {
+  console.error('FATAL: ADMIN_JWT_SECRET or ADMIN_API_KEY env var is required');
+  process.exit(1);
+}
 const ADMIN_JWT_EXPIRY = '4h';
+
+function securityLog(event, details) {
+  const timestamp = new Date().toISOString();
+  const ip = details.req ? (details.req.headers['x-forwarded-for'] || details.req.ip || 'unknown') : 'system';
+  console.log(`[SECURITY] ${timestamp} | ${event} | IP: ${ip} | ${JSON.stringify(details.message || {})}`);
+}
 
 function nowUZ() {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tashkent' });
@@ -147,12 +158,17 @@ app.use(helmet({
     payment: [],
   },
 }));
+app.use(morgan(':remote-addr :method :url :status :response-time ms'));
 app.use(express.json({ limit: '1mb' }));
 app.use(generalLimiter);
 app.use('/uploads', (req, res, next) => {
   const adminKey = req.headers['x-admin-key'];
-  if (adminKey && adminKey === process.env.ADMIN_API_KEY && process.env.ADMIN_API_KEY) {
-    return next();
+  if (adminKey && process.env.ADMIN_API_KEY) {
+    const keyBuf = Buffer.from(String(adminKey), 'utf8');
+    const expectedBuf = Buffer.from(process.env.ADMIN_API_KEY, 'utf8');
+    if (keyBuf.length === expectedBuf.length && crypto.timingSafeEqual(keyBuf, expectedBuf)) {
+      return next();
+    }
   }
   if (!req.headers['x-telegram-init-data']) {
     return res.status(401).json({ error: 'Autentifikatsiya talab qilinadi' });
@@ -198,7 +214,31 @@ const upload = multer({
     const allowedMimes = /image\/jpeg|image\/jpg|image\/png|image\/gif|application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document/;
     const ext = allowedExts.test(path.extname(file.originalname).toLowerCase());
     const mime = allowedMimes.test(file.mimetype);
-    cb(null, ext && mime);
+    if (!ext || !mime) return cb(null, false);
+
+    const chunks = [];
+    file.on('readable', () => {
+      let chunk;
+      while ((chunk = file.read(8)) !== null) {
+        chunks.push(chunk);
+        break;
+      }
+    });
+    file.on('end', () => {
+      const buf = Buffer.concat(chunks);
+      let valid = false;
+      if (buf.length >= 4) {
+        if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) valid = true;
+        else if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) valid = true;
+        else if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) valid = true;
+        else if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) valid = true;
+        else if (buf[0] === 0xD0 && buf[1] === 0xCF && buf[2] === 0x11 && buf[3] === 0xE0) valid = true;
+        else if (buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04) valid = true;
+      }
+      file.removeAllListeners();
+      cb(null, valid);
+    });
+    file.on('error', () => { file.removeAllListeners(); cb(null, false); });
   }
 });
 
@@ -220,10 +260,12 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     const keyBuf = Buffer.from(String(api_key), 'utf8');
     const expectedBuf = Buffer.from(expected, 'utf8');
     if (keyBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(keyBuf, expectedBuf)) {
+      securityLog('ADMIN_LOGIN_FAILED', { req, message: 'Invalid API key attempt' });
       return res.status(401).json({ error: 'Noto\'g\'ri API kalit' });
     }
 
-    const token = jwt.sign({ role: 'admin' }, ADMIN_JWT_SECRET, { expiresIn: ADMIN_JWT_EXPIRY });
+    const token = jwt.sign({ role: 'admin' }, ADMIN_JWT_SECRET, { expiresIn: ADMIN_JWT_EXPIRY, algorithm: 'HS256' });
+    securityLog('ADMIN_LOGIN_SUCCESS', { req, message: 'Admin logged in' });
     res.json({ token, expiresIn: ADMIN_JWT_EXPIRY });
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -289,8 +331,30 @@ app.post('/api/services', adminAuth, async (req, res) => {
 app.put('/api/services/:id', adminAuth, async (req, res) => {
   try {
     const { name, description, price, is_active } = req.body;
-    await run('UPDATE services SET name = ?, description = ?, price = ?, is_active = ? WHERE id = ?',
-      [name, description, price, is_active, req.params.id]);
+    const updates = [];
+    const params = [];
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length < 2) return sendError(res, 400, 'Nomi kamida 2 ta belgi bo\'lishi kerak');
+      updates.push('name = ?');
+      params.push(name.trim().slice(0, 200));
+    }
+    if (description !== undefined) {
+      updates.push('description = ?');
+      params.push((description || '').trim().slice(0, 500));
+    }
+    if (price !== undefined) {
+      if (typeof price !== 'number' || price < 0) return sendError(res, 400, 'Narx noto\'g\'ri');
+      updates.push('price = ?');
+      params.push(price);
+    }
+    if (is_active !== undefined) {
+      updates.push('is_active = ?');
+      params.push(is_active ? 1 : 0);
+    }
+    if (updates.length > 0) {
+      params.push(req.params.id);
+      await run(`UPDATE services SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
     res.json(await queryOne('SELECT * FROM services WHERE id = ?', [req.params.id]));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -386,7 +450,12 @@ app.get('/api/orders', adminAuth, async (req, res) => {
 app.get('/api/orders/:id', async (req, res) => {
   try {
     const adminKey = req.headers['x-admin-key'];
-    const isAdmin = !!(adminKey && adminKey === process.env.ADMIN_API_KEY && process.env.ADMIN_API_KEY);
+    let isAdmin = false;
+    if (adminKey && process.env.ADMIN_API_KEY) {
+      const keyBuf = Buffer.from(String(adminKey), 'utf8');
+      const expectedBuf = Buffer.from(process.env.ADMIN_API_KEY, 'utf8');
+      isAdmin = keyBuf.length === expectedBuf.length && crypto.timingSafeEqual(keyBuf, expectedBuf);
+    }
     const isTelegram = !!req.headers['x-telegram-init-data'];
     if (!isAdmin && !isTelegram) {
       return res.status(401).json({ error: 'Autentifikatsiya talab qilinadi' });
@@ -499,9 +568,16 @@ app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
 app.put('/api/orders/:id', adminAuth, async (req, res) => {
   try {
     const { status, admin_note } = req.body;
+    const allowedStatuses = ['pending_payment', 'pending_confirmation', 'in_progress', 'ready', 'sent', 'rejected'];
     const updates = ['updated_at = ?'];
     const params = [nowUZ()];
-    if (status) { updates.push('status = ?'); params.push(status); }
+    if (status) {
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ error: 'Noto\'g\'ri status qiymati' });
+      }
+      updates.push('status = ?');
+      params.push(status);
+    }
     if (status === 'ready') { updates.push('ready_at = ?'); params.push(nowUZ()); }
     if (admin_note !== undefined) { updates.push('admin_note = ?'); params.push(admin_note); }
     params.push(parseInt(req.params.id));
@@ -728,11 +804,12 @@ app.get('/api/stats', adminAuth, statsLimiter, async (req, res) => {
 
 app.get('/api/settings', async (req, res) => {
   try {
-    const settings = await queryAll('SELECT * FROM settings');
+    const publicKeys = ['bot_username', 'channels', 'payment_instructions', 'min_prep_time_hours', 'referral_discount_amount', 'referral_reward_amount'];
+    const settings = await queryAll('SELECT key, value FROM settings');
     const obj = {};
-    settings.forEach(s => obj[s.key] = s.value);
-    delete obj.bot_token;
-    delete obj.admin_chat_id;
+    settings.forEach(s => {
+      if (publicKeys.includes(s.key)) obj[s.key] = s.value;
+    });
     res.json(obj);
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -808,9 +885,9 @@ app.get('/api/user/orders/:telegram_id', telegramAuth, async (req, res) => {
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
-app.get('/api/user/active-cards', async (req, res) => {
+app.get('/api/user/active-cards', telegramAuth, async (req, res) => {
   try {
-    const cards = await queryAll('SELECT * FROM payment_cards WHERE is_active = 1');
+    const cards = await queryAll('SELECT id, card_number, card_holder, bank_name FROM payment_cards WHERE is_active = 1');
     res.json(cards.map(c => ({ ...c, card_number: maskCardNumber(c.card_number) })));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -978,6 +1055,8 @@ app.post('/api/reviews', writeLimiter, telegramAuth, async (req, res) => {
       return res.status(400).json({ error: 'Majburiy maydonlar yetishmayapdi' });
     if (stars < 1 || stars > 5)
       return res.status(400).json({ error: 'Yulduzlar 1-5 orasida bo\'lishi kerak' });
+    if (typeof text !== 'string' || text.trim().length < 5 || text.trim().length > 1000)
+      return res.status(400).json({ error: 'Sharh matni 5-1000 belgi orasida bo\'lishi kerak' });
 
     const user = await queryOne('SELECT id FROM users WHERE telegram_id = ?', [req.telegramUserId]);
     if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });

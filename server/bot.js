@@ -1,4 +1,4 @@
-const TelegramBot = require('node-telegram-bot-api');
+const { TelegramBot } = require('node-telegram-bot-api');
 const { queryAll, queryOne, run } = require('./database');
 const fs = require('fs');
 const path = require('path');

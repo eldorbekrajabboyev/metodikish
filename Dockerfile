@@ -3,13 +3,13 @@ FROM node:20-slim AS builder
 WORKDIR /app
 
 COPY server/package*.json ./server/
-RUN cd server && npm install --production
+RUN cd server && npm ci --production
 
 COPY client/package*.json ./client/
-RUN cd client && npm install
+RUN cd client && npm ci
 
 COPY admin/package*.json ./admin/
-RUN cd admin && npm install
+RUN cd admin && npm ci
 
 COPY . .
 
