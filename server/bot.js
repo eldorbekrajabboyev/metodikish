@@ -69,7 +69,7 @@ async function startBot(app) {
 
   try {
     const tempBot = new TelegramBot(BOT_TOKEN);
-    const webhookInfo = await tempBot.getWebHookInfo();
+    const webhookInfo = await tempBot.getWebhookInfo();
     console.log(`🔍 Current webhook: ${webhookInfo.url ? 'set (hidden)' : 'none'}`);
     if (webhookInfo.url) {
       await tempBot.deleteWebHook();
@@ -100,11 +100,11 @@ async function startBot(app) {
       }
     } catch (whErr) {
       console.error('⚠️ Webhook setup failed, falling back to polling:', whErr.message);
-      bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 2000, timeout: 30 } });
+      bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 2000, params: { timeout: 30 } } });
       console.log('🤖 Bot polling mode started (fallback)');
     }
   } else {
-    bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 2000, timeout: 30 } });
+    bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 2000, params: { timeout: 30 } } });
     console.log('🤖 Bot polling mode started');
   }
   
