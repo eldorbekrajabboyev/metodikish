@@ -744,7 +744,7 @@ app.get('/api/stats', adminAuth, statsLimiter, async (req, res) => {
     try { subjectStats = await queryAll(`SELECT subject, COUNT(*) as count FROM orders ${stWhere} GROUP BY subject ORDER BY count DESC LIMIT 10`, stParams); } catch (e) {}
     try { gradeStats = await queryAll(`SELECT grade, COUNT(*) as count FROM orders ${stWhere} GROUP BY grade ORDER BY count DESC`, stParams); } catch (e) {}
     try { regionStats = await queryAll(`SELECT address as region, COUNT(*) as count FROM orders ${stWhere} GROUP BY region ORDER BY count DESC LIMIT 20`, stParams); } catch (e) {}
-    try { recentOrders = await queryAll(`SELECT o.id, o.order_code, o.full_name, o.status, o.total_price, o.created_at, s.name as service_name FROM orders o LEFT JOIN services s ON o.service_id = s.id ${schoolTypeFilter ? 'WHERE o.school_type = ?' : ''} ORDER BY o.created_at DESC LIMIT 7`, stParams); recentOrders.forEach(fixOrderDates); } catch (e) {}
+    try { recentOrders = await queryAll(`SELECT o.id, o.order_code, o.full_name, o.status, o.total_price, o.created_at, s.name as service_name FROM orders o LEFT JOIN services s ON o.service_id = s.id ORDER BY o.created_at DESC LIMIT 7`); recentOrders.forEach(fixOrderDates); } catch (e) {}
 
     // Daily chart data (last 14 days)
     let dailyChart = [];
