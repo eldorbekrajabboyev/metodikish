@@ -162,23 +162,6 @@ app.use(morgan(':remote-addr :method :url :status :response-time ms'));
 app.use(express.json({ limit: '1mb' }));
 app.use(generalLimiter);
 app.use('/uploads', (req, res, next) => {
-  const adminKey = req.headers['x-admin-key'];
-  if (adminKey && process.env.ADMIN_API_KEY) {
-    const keyBuf = Buffer.from(String(adminKey), 'utf8');
-    const expectedBuf = Buffer.from(process.env.ADMIN_API_KEY, 'utf8');
-    if (keyBuf.length === expectedBuf.length && crypto.timingSafeEqual(keyBuf, expectedBuf)) {
-      return next();
-    }
-  }
-  if (!req.headers['x-telegram-init-data']) {
-    return res.status(401).json({ error: 'Autentifikatsiya talab qilinadi' });
-  }
-  const result = validateTelegramInitData(req.headers['x-telegram-init-data'], process.env.BOT_TOKEN);
-  if (!result) return res.status(401).json({ error: 'Telegram auth xatosi' });
-  const requestedPath = '/' + req.path.replace(/\\/g, '/');
-  const allowedPrefixes = ['/receipts/', '/images/', '/documents/'];
-  const hasValidPrefix = allowedPrefixes.some(p => requestedPath.startsWith(p));
-  if (!hasValidPrefix) return res.status(403).json({ error: 'Ruxsatsiz' });
   const basename = path.basename(req.path);
   if (basename === 'local.db' || basename.endsWith('.db')) {
     return res.status(403).json({ error: 'Ruxsatsiz' });
