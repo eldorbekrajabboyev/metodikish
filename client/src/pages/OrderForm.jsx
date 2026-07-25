@@ -118,9 +118,6 @@ function OrderForm({ user }) {
   const [promoChecking, setPromoChecking] = useState(false)
   const [promoError, setPromoError] = useState('')
   const [hasPromo, setHasPromo] = useState(false)
-  const [referralBalance, setReferralBalance] = useState(0)
-  const [referralDiscountAmount, setReferralDiscountAmount] = useState(0)
-  const [useReferral, setUseReferral] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
   const [form, setForm] = useState({
@@ -169,12 +166,6 @@ function OrderForm({ user }) {
       setService(svc)
       setCards(cardsRes.data)
       setRegionsData(regionsRes.data)
-      if (user?.id) {
-        axios.get(`/api/user/referral-info/${user.id}`).then(refRes => {
-          setReferralBalance(refRes.data.referral_balance || 0)
-          setReferralDiscountAmount(refRes.data.referral_discount_amount || 0)
-        }).catch(() => {})
-      }
     }).catch(console.error)
     .finally(() => setLoading(false))
   }, [serviceId, user])
@@ -244,7 +235,6 @@ function OrderForm({ user }) {
         geographic_surcharge: geoSurcharge,
         promo_code_id: promoCodeId,
         promo_discount: promoDiscount,
-        use_referral_discount: useReferral,
       })
 
       if (images.length > 0) {
@@ -289,9 +279,10 @@ function OrderForm({ user }) {
 
   const langSurcharge = getLanguageSurcharge(form.school_type, form.subject)
   const geoSurcharge = form.geo_extra ? (form.geographic_level === 'viloyat' ? 60000 : form.geographic_level === 'respublika' ? 110000 : 0) : 0
-  const basePrice = (service ? service.price : 0) + langSurcharge + geoSurcharge
-  const activeReferralDiscount = useReferral && referralBalance >= referralDiscountAmount ? referralDiscountAmount : 0
-  const totalPrice = basePrice - promoDiscount - activeReferralDiscount
+  const effectiveServicePrice = (service && service.discounted_price && service.discounted_price < service.price) ? service.discounted_price : (service ? service.price : 0)
+  const basePrice = effectiveServicePrice + langSurcharge + geoSurcharge
+  const activeReferralDiscount = (service && service.discounted_price && service.discounted_price < service.price) ? (service.price - service.discounted_price) : 0
+  const totalPrice = basePrice - promoDiscount
 
   const steps = [
     { num: 1, title: 'F.I.Sh' },
@@ -584,26 +575,6 @@ function OrderForm({ user }) {
             )}
           </div>
 
-          {referralDiscountAmount > 0 && referralBalance >= referralDiscountAmount && (
-            <div className="bg-tg-secondary rounded-2xl p-4 border border-tg-text/5 space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={useReferral}
-                  onChange={(e) => setUseReferral(e.target.checked)}
-                  className="w-5 h-5 rounded-md border-tg-hint/30 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-sm font-medium text-tg-text">Do'stni taklif qilganlik chegirmasi</span>
-              </label>
-              {useReferral && (
-                <div className="pl-8 space-y-1">
-                  <p className="text-xs text-tg-hint">Balans: {referralBalance.toLocaleString()} so'm</p>
-                  <p className="text-sm text-green-600 font-medium">-{referralDiscountAmount.toLocaleString()} so'm kamayadi</p>
-                </div>
-              )}
-            </div>
-          )}
-
           <div className="bg-tg-secondary rounded-2xl p-4 border border-tg-text/5">
             <h3 className="font-semibold mb-2">📋 Buyurtma ma'lumotlari:</h3>
             <div className="text-sm text-tg-hint space-y-1">
@@ -618,7 +589,7 @@ function OrderForm({ user }) {
               <div className="pt-2 mt-2 border-t border-tg-text/10 space-y-1">
                 <div className="flex justify-between text-sm text-tg-hint">
                   <span>Xizmat narxi:</span>
-                  <span>{service.price.toLocaleString()} so'm</span>
+                  <span>{effectiveServicePrice.toLocaleString()} so'm</span>
                 </div>
                 {langSurcharge > 0 && (
                   <div className="flex justify-between text-sm text-amber-600">
@@ -636,12 +607,6 @@ function OrderForm({ user }) {
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Promo-kod chegirmasi:</span>
                     <span>-{promoDiscount.toLocaleString()} so'm</span>
-                  </div>
-                )}
-                {activeReferralDiscount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Do'stni taklif qilganlik chegirmasi:</span>
-                    <span>-{activeReferralDiscount.toLocaleString()} so'm</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-1 border-t border-tg-text/10">
