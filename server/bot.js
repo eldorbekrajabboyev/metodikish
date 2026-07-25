@@ -187,6 +187,15 @@ async function startBot(app) {
           if (friendReward > 0) {
             await run('UPDATE users SET referral_balance = referral_balance + ? WHERE id = ?', [friendReward, user.id]);
           }
+          // Notify referrer
+          const referrerTg = await queryOne('SELECT telegram_id FROM users WHERE id = ?', [referrer.id]);
+          if (referrerTg && referrerTg.telegram_id) {
+            const discountSetting = await queryOne("SELECT value FROM settings WHERE key = 'referral_discount_amount'");
+            const discountAmount = discountSetting ? parseInt(discountSetting.value) || 0 : 0;
+            bot.sendMessage(referrerTg.telegram_id,
+              `🎉 Siz ${msg.from.first_name} ni taklif qildingiz!\n\nAgar u buyurtma bersa va to'lovni tasdiqlasa, sizga ${discountAmount.toLocaleString()} so'm chegirma beramiz!`
+            ).catch(() => {});
+          }
         }
       }
     }

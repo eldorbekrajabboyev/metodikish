@@ -76,7 +76,7 @@ function Profile({ user }) {
           <div className="bg-tg-secondary rounded-2xl p-4 border border-tg-text/5 space-y-3">
             <h3 className="font-semibold text-sm">👥 Do'stni taklif qilish</h3>
             <p className="text-xs text-tg-hint">
-              1 ta do'stingizni taklif qilsangiz — sizga 20 000 so'm, do'stingizga 10 000 so'm chegirma beriladi
+              1 ta do'stingizni taklif qilsangiz — sizga {referralInfo?.referral_discount_amount?.toLocaleString() || '20 000'} so'm, do'stingizga {referralInfo?.referral_reward_amount?.toLocaleString() || '10 000'} so'm chegirma beriladi
             </p>
             <div className="flex gap-2">
               <input
@@ -98,26 +98,6 @@ function Profile({ user }) {
             </div>
           </div>
         )}
-
-        {/* Chegirma statistikasi */}
-        <div className="bg-tg-secondary rounded-2xl p-4 border border-tg-text/5 space-y-3">
-          <h3 className="font-semibold text-sm">📊 Chegirma statistikasi</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-tg-secondary rounded-xl p-3 text-center border border-tg-text/5">
-              <p className="text-2xl font-bold text-primary-600">{referralInfo?.referred_count || 0}</p>
-              <p className="text-xs text-tg-hint mt-1">Taklif qilingan</p>
-            </div>
-            <div className="bg-tg-secondary rounded-xl p-3 text-center border border-tg-text/5">
-              <p className="text-2xl font-bold text-green-600">{(referralInfo?.referral_balance || 0).toLocaleString()}</p>
-              <p className="text-xs text-tg-hint mt-1">Chegirma balansi (so'm)</p>
-            </div>
-          </div>
-          {referralInfo?.referral_discount_amount > 0 && (
-            <p className="text-xs text-tg-hint text-center">
-              1 ta do'stni taklif qilganingiz uchun +{referralInfo.referral_discount_amount.toLocaleString()} so'm chegirma
-            </p>
-          )}
-        </div>
 
         {/* Qanday ishlaydi? */}
         <div className="bg-tg-secondary rounded-2xl p-4 border border-tg-text/5 space-y-2">

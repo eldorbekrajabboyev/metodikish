@@ -272,7 +272,26 @@ app.post('/api/users', writeLimiter, telegramAuth, async (req, res) => {
 app.get('/api/services', async (req, res) => {
   try {
     const services = await queryAll('SELECT * FROM services ORDER BY id ASC');
-    res.json(services);
+    let userBalance = 0;
+    const initData = req.headers['x-telegram-init-data'];
+    if (initData) {
+      try {
+        const result = validateTelegramInitData(initData, process.env.BOT_TOKEN);
+        if (result) {
+          const user = await queryOne('SELECT referral_balance FROM users WHERE telegram_id = ?', [result.telegram_id]);
+          if (user) userBalance = user.referral_balance || 0;
+        }
+      } catch (e) { /* unauthenticated — return services without discount */ }
+    }
+    const enriched = services.map(s => {
+      const obj = { ...s };
+      if (userBalance > 0 && s.is_active) {
+        obj.discounted_price = Math.max(10000, s.price - userBalance);
+        obj.referral_balance = userBalance;
+      }
+      return obj;
+    });
+    res.json(enriched);
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
@@ -488,12 +507,9 @@ app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
 
     // Validate referral discount if requested
     let validReferralDiscount = 0;
-    if (use_referral_discount) {
-      const setting = await queryOne("SELECT value FROM settings WHERE key = 'referral_discount_amount'");
-      const discountAmount = setting ? parseInt(setting.value) || 0 : 0;
-      if (discountAmount > 0 && (tgUser.referral_balance || 0) >= discountAmount) {
-        validReferralDiscount = discountAmount;
-      }
+    const referralBalance = tgUser.referral_balance || 0;
+    if (referralBalance > 0) {
+      validReferralDiscount = Math.min(referralBalance, Math.max(0, basePrice - 10000));
     }
 
     const orderCode = `MK-${Date.now().toString(36).toUpperCase()}${uuidv4().substring(0, 4).toUpperCase()}`;
@@ -627,6 +643,17 @@ app.put('/api/orders/:id/confirm-payment', adminAuth, async (req, res) => {
       const rewardAmount = setting ? parseInt(setting.value) || 0 : 0;
       if (rewardAmount > 0) {
         await run('UPDATE users SET referral_balance = referral_balance + ? WHERE id = ?', [rewardAmount, orderUser.referred_by]);
+        // Notify referrer
+        const bot2 = require('./bot').getBotInstance();
+        if (bot2) {
+          const referrerTg = await queryOne('SELECT telegram_id FROM users WHERE id = ?', [orderUser.referred_by]);
+          if (referrerTg && referrerTg.telegram_id) {
+            bot2.sendMessage(referrerTg.telegram_id,
+              `🎉 Siz taklif qilgan ${order.first_name} bizning xizmatimizdan foydalandi!\n\nSizga ${rewardAmount.toLocaleString()} so'm chegirma berildi — barcha xizmatlar uchun amal qiladi!`,
+              { reply_markup: { inline_keyboard: [[{ text: '📱 Xizmatlarni ko\'rish', web_app: { url: 'https://metodikish.fly.dev/' } }]] } }
+            ).catch(err => console.error('Referrer notification failed:', err.message));
+          }
+        }
       }
     }
     const queueResult = await queryOne(
@@ -867,11 +894,14 @@ app.get('/api/user/referral-info/:telegram_id', telegramAuth, async (req, res) =
     const user = await queryOne('SELECT id, referral_balance, referred_by FROM users WHERE telegram_id = ?', [requestedId]);
     if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
     const referredCount = await queryOne('SELECT COUNT(*) as cnt FROM users WHERE referred_by = ?', [user.id]);
-    const setting = await queryOne("SELECT value FROM settings WHERE key = 'referral_discount_amount'");
-    const discountAmount = setting ? parseInt(setting.value) || 0 : 0;
+    const discountSetting = await queryOne("SELECT value FROM settings WHERE key = 'referral_discount_amount'");
+    const discountAmount = discountSetting ? parseInt(discountSetting.value) || 0 : 0;
+    const rewardSetting = await queryOne("SELECT value FROM settings WHERE key = 'referral_reward_amount'");
+    const rewardAmount = rewardSetting ? parseInt(rewardSetting.value) || 0 : 0;
     res.json({
       referral_balance: user.referral_balance || 0,
       referral_discount_amount: discountAmount,
+      referral_reward_amount: rewardAmount,
       referred_count: referredCount ? referredCount.cnt : 0,
       referral_code: req.params.telegram_id
     });

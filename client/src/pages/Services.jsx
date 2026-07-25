@@ -75,9 +75,22 @@ function Services({ user }) {
               </div>
             </div>
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-tg-text/5">
-              <p className="text-primary-600 font-bold text-xl">
-                {service.price.toLocaleString()} <span className="text-sm font-medium">so'm</span>
-              </p>
+              <div>
+                {service.discounted_price && service.discounted_price < service.price ? (
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-primary-600 font-bold text-xl">
+                      {service.discounted_price.toLocaleString()} <span className="text-sm font-medium">so'm</span>
+                    </p>
+                    <p className="text-tg-hint line-through text-sm">
+                      {service.price.toLocaleString()} so'm
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-primary-600 font-bold text-xl">
+                    {service.price.toLocaleString()} <span className="text-sm font-medium">so'm</span>
+                  </p>
+                )}
+              </div>
               <span className="text-sm font-medium text-primary-600 bg-primary-50 px-3 py-1.5 rounded-lg">
                 Tanlash →
               </span>
