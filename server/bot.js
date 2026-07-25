@@ -113,11 +113,25 @@ async function startBot(app) {
   // Recover stuck pending_payment orders from previous server run
   try {
     const staleOrders = await queryAll(
-      "SELECT id, order_code, user_id, promo_code_id, referral_discount FROM orders WHERE status = 'pending_payment'",
+      "SELECT id, order_code, user_id, promo_code_id, referral_discount, created_at FROM orders WHERE status = 'pending_payment'",
       []
     );
+    const PAYMENT_TIMEOUT_MS = 5 * 60 * 1000;
     const userIdMap = {};
     for (const o of staleOrders) {
+      // Only cancel if payment window has actually expired
+      const createdMs = new Date(o.created_at.replace(' ', 'T') + '+05:00').getTime();
+      if (!isNaN(createdMs) && (Date.now() - createdMs) < PAYMENT_TIMEOUT_MS) {
+        if (!userIdMap[o.user_id]) {
+          const u = await queryOne('SELECT telegram_id FROM users WHERE id = ?', [o.user_id]);
+          userIdMap[o.user_id] = u ? u.telegram_id : null;
+        }
+        const tid = userIdMap[o.user_id];
+        if (tid) {
+          bot.sendMessage(tid, `ℹ️ *Server qayta ishga tushdi.*\n\n📋 #${o.order_code}\n\n✅ To'lov muddatingiz hali tugamagan — chekni yuklang!`).catch(() => {});
+        }
+        continue;
+      }
       if (!userIdMap[o.user_id]) {
         const u = await queryOne('SELECT telegram_id FROM users WHERE id = ?', [o.user_id]);
         userIdMap[o.user_id] = u ? u.telegram_id : null;

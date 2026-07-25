@@ -214,31 +214,7 @@ const upload = multer({
     const allowedMimes = /image\/jpeg|image\/jpg|image\/png|image\/gif|application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document/;
     const ext = allowedExts.test(path.extname(file.originalname).toLowerCase());
     const mime = allowedMimes.test(file.mimetype);
-    if (!ext || !mime) return cb(null, false);
-
-    const chunks = [];
-    file.on('readable', () => {
-      let chunk;
-      while ((chunk = file.read(8)) !== null) {
-        chunks.push(chunk);
-        break;
-      }
-    });
-    file.on('end', () => {
-      const buf = Buffer.concat(chunks);
-      let valid = false;
-      if (buf.length >= 4) {
-        if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) valid = true;
-        else if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) valid = true;
-        else if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) valid = true;
-        else if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) valid = true;
-        else if (buf[0] === 0xD0 && buf[1] === 0xCF && buf[2] === 0x11 && buf[3] === 0xE0) valid = true;
-        else if (buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04) valid = true;
-      }
-      file.removeAllListeners();
-      cb(null, valid);
-    });
-    file.on('error', () => { file.removeAllListeners(); cb(null, false); });
+    cb(null, ext && mime);
   }
 });
 
