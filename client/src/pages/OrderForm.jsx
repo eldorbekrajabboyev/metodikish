@@ -139,6 +139,14 @@ function OrderForm({ user }) {
   const isKarakalpakstan = form.region === "Qoraqalpog'iston Respublikasi"
   const availableSchoolTypes = isKarakalpakstan ? SCHOOL_TYPES : SCHOOL_TYPES.filter(st => st.id !== 'qoraqalpoq')
 
+  const regionNames = useMemo(() => regionsData ? regionsData.regions.map(r => r.name_uz) : [], [regionsData])
+
+  const districts = useMemo(() => {
+    if (!regionsData || !form.region) return []
+    const region = regionsData.regions.find(r => r.name_uz === form.region)
+    return region ? region.districts.map(d => d.name) : []
+  }, [regionsData, form.region])
+
   useEffect(() => {
     if (form.region && form.district && !districts.includes(form.district)) {
       setForm(f => ({ ...f, district: '' }))
@@ -170,14 +178,6 @@ function OrderForm({ user }) {
     }).catch(console.error)
     .finally(() => setLoading(false))
   }, [serviceId, user])
-
-  const regionNames = useMemo(() => regionsData ? regionsData.regions.map(r => r.name_uz) : [], [regionsData])
-
-  const districts = useMemo(() => {
-    if (!regionsData || !form.region) return []
-    const region = regionsData.regions.find(r => r.name_uz === form.region)
-    return region ? region.districts.map(d => d.name) : []
-  }, [regionsData, form.region])
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files)
