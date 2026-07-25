@@ -318,7 +318,7 @@ function OrderForm({ user }) {
     <div className="animate-fade-in min-h-screen">
       <Header
         title={service.name}
-        subtitle={`${totalPrice.toLocaleString()} so'm${langSurcharge > 0 ? ' (til)' : ''}${geoSurcharge > 0 ? ' (daraja)' : ''}${promoDiscount > 0 ? ' (-promo)' : ''}${activeReferralDiscount > 0 ? ' (-referral)' : ''}`}
+        subtitle={`${totalPrice.toLocaleString()} so'm${langSurcharge > 0 ? ' (til)' : ''}${geoSurcharge > 0 ? ' (daraja)' : ''}${promoDiscount > 0 ? ' (-promo)' : ''}${activeReferralDiscount > 0 ? ' (-chegirma)' : ''}`}
         onBack={() => step > 1 ? setStep(step - 1) : navigate(-1)}
       />
 
@@ -593,7 +593,7 @@ function OrderForm({ user }) {
                   onChange={(e) => setUseReferral(e.target.checked)}
                   className="w-5 h-5 rounded-md border-tg-hint/30 text-primary-600 focus:ring-primary-500"
                 />
-                <span className="text-sm font-medium text-tg-text">Taklif chegirmadan foydalanish</span>
+                <span className="text-sm font-medium text-tg-text">Do'stni taklif qilganlik chegirmasi</span>
               </label>
               {useReferral && (
                 <div className="pl-8 space-y-1">
@@ -640,7 +640,7 @@ function OrderForm({ user }) {
                 )}
                 {activeReferralDiscount > 0 && (
                   <div className="flex justify-between text-sm text-green-600">
-                    <span>Taklif chegirmasi:</span>
+                    <span>Do'stni taklif qilganlik chegirmasi:</span>
                     <span>-{activeReferralDiscount.toLocaleString()} so'm</span>
                   </div>
                 )}

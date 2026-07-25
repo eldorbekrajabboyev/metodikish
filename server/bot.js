@@ -167,6 +167,12 @@ async function startBot(app) {
         const referrer = await queryOne('SELECT id FROM users WHERE telegram_id = ?', [referrerTelegramId]);
         if (referrer) {
           await run('UPDATE users SET referred_by = ? WHERE id = ?', [referrer.id, user.id]);
+          // Give the invited friend their welcome discount
+          const rewardSetting = await queryOne("SELECT value FROM settings WHERE key = 'referral_reward_amount'");
+          const friendReward = rewardSetting ? parseInt(rewardSetting.value) || 0 : 0;
+          if (friendReward > 0) {
+            await run('UPDATE users SET referral_balance = referral_balance + ? WHERE id = ?', [friendReward, user.id]);
+          }
         }
       }
     }

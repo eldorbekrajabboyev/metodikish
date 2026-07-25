@@ -85,7 +85,7 @@ function Settings() {
           {/* Bot Username */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              🤖 Bot Username (referal havola uchun)
+              🤖 Bot Username (chegirma havolasi uchun)
             </label>
             <input
               type="text"
@@ -94,7 +94,7 @@ function Settings() {
               placeholder="Masalan: metodikish_bot"
               className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
             />
-            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Bot username'siz referal havola ishlamaydi</p>
+            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Bot username'siz chegirma havolasi ishlamaydi</p>
           </div>
 
           {/* Admin Chat ID */}
@@ -147,23 +147,39 @@ function Settings() {
           </button>
         </div>
 
-        {/* Referral Settings */}
+        {/* Chegirma tizimi sozlamalari */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6 dark:bg-gray-800 dark:border-gray-700/50">
-          <h2 className="text-lg font-semibold dark:text-white">👥 Referal tizimi sozlamalari</h2>
+          <h2 className="text-lg font-semibold dark:text-white">👥 Chegirma tizimi sozlamalari</h2>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              💰 Referal chegirma miqdori (so'm)
+              💰 Taklif qilgan ustoz uchun chegirma (so'm)
             </label>
             <input
               type="number"
               value={settings.referral_discount_amount || '0'}
               onChange={(e) => handleChange('referral_discount_amount', e.target.value)}
-              placeholder="Masalan: 40000"
+              placeholder="Masalan: 20000"
               className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Taklif qilgan foydalanuvchi to'lov qilganda, taklif qiluvchiga beriladigan chegirma miqdori. 0 = o'chirilgan.
+              1 ta do'stni taklif qilganingizda sizga beriladigan chegirma miqdori. 0 = o'chirilgan.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              🎁 Taklif qilingan ustozga beriladigan chegirma (so'm)
+            </label>
+            <input
+              type="number"
+              value={settings.referral_reward_amount || '0'}
+              onChange={(e) => handleChange('referral_reward_amount', e.target.value)}
+              placeholder="Masalan: 10000"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Taklif qilingan ustoz birinchi buyurtma qilganda unga beriladigan chegirma miqdori. 0 = o'chirilgan.
             </p>
           </div>
 

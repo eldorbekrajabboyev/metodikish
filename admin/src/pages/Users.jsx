@@ -32,8 +32,8 @@ function Users() {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Telegram ID</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Username</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Ism</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Referral</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Balans</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Taklif qilgan</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Chegirma balansi</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">Sana</th>
             </tr>
           </thead>

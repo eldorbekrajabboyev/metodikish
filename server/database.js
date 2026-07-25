@@ -217,10 +217,14 @@ async function initDatabase() {
     await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
       ["channels", "[]"]);
     await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
-      ["referral_discount_amount", "0"]);
+      ["referral_discount_amount", "20000"]);
+    await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+      ["referral_reward_amount", "10000"]);
   }
   await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
-    ["referral_discount_amount", "0"]);
+    ["referral_discount_amount", "20000"]);
+  await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+    ["referral_reward_amount", "10000"]);
   await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
     ["bot_username", ""]);
 
