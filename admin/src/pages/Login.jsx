@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import api from '../api/api'
 
 function Login() {
   const [apiKey, setApiKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const navigate = useNavigate()
   const location = useLocation()
   const from = location.state?.from || sessionStorage.getItem('admin_redirect') || '/'
 
@@ -19,8 +18,7 @@ function Login() {
       const res = await api.post('/api/admin/login', { api_key: apiKey.trim() })
       sessionStorage.setItem('admin_token', res.data.token)
       sessionStorage.removeItem('admin_redirect')
-      navigate(from, { replace: true })
-      window.location.reload()
+      window.location.href = '/admin' + from
     } catch (err) {
       setError(err.response?.data?.error || 'Kirish xatosi')
     } finally {
