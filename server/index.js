@@ -426,8 +426,17 @@ app.get('/api/orders', adminAuth, async (req, res) => {
 app.get('/api/orders/:id', async (req, res) => {
   try {
     const adminKey = req.headers['x-admin-key'];
+    const authHeader = req.headers['authorization'];
     let isAdmin = false;
-    if (adminKey && process.env.ADMIN_API_KEY) {
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(authHeader.slice(7), ADMIN_JWT_SECRET, { algorithms: ['HS256'] });
+        if (decoded && decoded.role === 'admin') isAdmin = true;
+      } catch (e) { /* fall through */ }
+    }
+
+    if (!isAdmin && adminKey && process.env.ADMIN_API_KEY) {
       const keyBuf = Buffer.from(String(adminKey), 'utf8');
       const expectedBuf = Buffer.from(process.env.ADMIN_API_KEY, 'utf8');
       isAdmin = keyBuf.length === expectedBuf.length && crypto.timingSafeEqual(keyBuf, expectedBuf);
