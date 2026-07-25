@@ -484,7 +484,10 @@ app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
 
     const languageSurcharge = getLanguageSurcharge(school_type, subject);
     const geoSurcharge = geographic_level === 'viloyat' ? 60000 : geographic_level === 'respublika' ? 110000 : 0;
-    const basePrice = service.price + languageSurcharge + geoSurcharge;
+    const referralBalance = tgUser.referral_balance || 0;
+    const effectiveServicePrice = referralBalance > 0 ? Math.max(10000, service.price - referralBalance) : service.price;
+    const validReferralDiscount = service.price - effectiveServicePrice;
+    const basePrice = effectiveServicePrice + languageSurcharge + geoSurcharge;
 
     // Validate promo code if provided
     let validPromoId = null;
@@ -505,15 +508,8 @@ app.post('/api/orders', writeLimiter, telegramAuth, async (req, res) => {
       }
     }
 
-    // Validate referral discount if requested
-    let validReferralDiscount = 0;
-    const referralBalance = tgUser.referral_balance || 0;
-    if (referralBalance > 0) {
-      validReferralDiscount = Math.min(referralBalance, Math.max(0, basePrice - 10000));
-    }
-
     const orderCode = `MK-${Date.now().toString(36).toUpperCase()}${uuidv4().substring(0, 4).toUpperCase()}`;
-    const totalPrice = Math.max(0, basePrice - validPromoDiscount - validReferralDiscount);
+    const totalPrice = Math.max(0, basePrice - validPromoDiscount);
 
     // P5: Wrap order + promo usage + referral deduction in a transaction
     const orderId = await withTransaction(async ({ run: txRun, queryOne: txQueryOne }) => {
