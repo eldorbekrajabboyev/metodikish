@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { initDatabase, queryAll, queryOne, run, withTransaction } = require('./database');
 
@@ -20,6 +21,9 @@ const writeLimiter = rateLimit({ windowMs: 60000, max: 20, message: { error: "Ju
 const promoLimiter = rateLimit({ windowMs: 60000, max: 10, message: { error: "Promo-kod tekshirish limiti. 1 daqiqa kuting." } });
 const broadcastLimiter = rateLimit({ windowMs: 300000, max: 5, message: { error: "Xabar yuborish limiti. 5 daqiqa kuting." } });
 const statsLimiter = rateLimit({ windowMs: 60000, max: 30, message: { error: "Statistika limiti. 1 daqiqa kuting." } });
+
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.ADMIN_API_KEY || 'fallback-change-this';
+const ADMIN_JWT_EXPIRY = '4h';
 
 function nowUZ() {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tashkent' });
@@ -118,7 +122,30 @@ app.use(cors({
     }
   }
 }));
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "https://metodikish.fly.dev", "https://api.telegram.org"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  permissionsPolicy: {
+    camera: [],
+    microphone: [],
+    geolocation: [],
+    payment: [],
+  },
+}));
 app.use(express.json({ limit: '1mb' }));
 app.use(generalLimiter);
 app.use('/uploads', (req, res, next) => {
@@ -177,6 +204,28 @@ const upload = multer({
 function setUploadType(type) {
   return (req, res, next) => { req.uploadType = type; next(); };
 }
+
+// ==================== ADMIN LOGIN (JWT) ====================
+
+const loginLimiter = rateLimit({ windowMs: 60000, max: 5, message: { error: "Juda ko'p urinish. 1 daqiqa kuting." } });
+
+app.post('/api/admin/login', loginLimiter, (req, res) => {
+  try {
+    const { api_key } = req.body;
+    const expected = process.env.ADMIN_API_KEY;
+    if (!expected) return res.status(500).json({ error: 'Server sozlanmagan' });
+    if (!api_key) return res.status(400).json({ error: 'API kalit kiritilmagan' });
+
+    const keyBuf = Buffer.from(String(api_key), 'utf8');
+    const expectedBuf = Buffer.from(expected, 'utf8');
+    if (keyBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(keyBuf, expectedBuf)) {
+      return res.status(401).json({ error: 'Noto\'g\'ri API kalit' });
+    }
+
+    const token = jwt.sign({ role: 'admin' }, ADMIN_JWT_SECRET, { expiresIn: ADMIN_JWT_EXPIRY });
+    res.json({ token, expiresIn: ADMIN_JWT_EXPIRY });
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
+});
 
 // ==================== API ROUTES ====================
 
@@ -916,7 +965,7 @@ app.get('/api/reviews/published', async (req, res) => {
     );
     res.json(reviews);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, 500, 'Server xatosi');
   }
 });
 
@@ -948,7 +997,7 @@ app.post('/api/reviews', writeLimiter, telegramAuth, async (req, res) => {
     );
     res.json({ id: result.lastInsertRowid, message: 'Sharh qabul qilindi' });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, 500, 'Server xatosi');
   }
 });
 

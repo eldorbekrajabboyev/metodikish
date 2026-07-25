@@ -1,11 +1,24 @@
 import axios from 'axios';
 
-const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY || '';
+const api = axios.create();
 
-const api = axios.create({
-  headers: {
-    'X-Admin-Key': ADMIN_API_KEY,
-  },
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('admin_token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401 && window.location.pathname !== '/admin/login') {
+      sessionStorage.removeItem('admin_token');
+      window.location.href = '/admin/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;

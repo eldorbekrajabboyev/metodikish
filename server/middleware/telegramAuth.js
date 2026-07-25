@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const MAX_AUTH_AGE = 86400; // 24 hours in seconds
+const MAX_AUTH_AGE = 86400; // 24 hours — Telegram recommends this for MiniApp auth
 
 function validateTelegramInitData(initData, botToken) {
   if (!initData || !botToken) return null;
