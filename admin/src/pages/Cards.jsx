@@ -149,7 +149,7 @@ function Cards() {
           <div key={card.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700/50 p-4">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="font-mono text-lg font-bold dark:text-white">{card.card_number}</p>
+                <p className="font-mono text-lg font-bold dark:text-white">{card.card_number.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim()}</p>
                 <p className="text-gray-600 dark:text-gray-300 mt-1">{card.card_holder}</p>
                 {card.bank_name && <p className="text-sm text-gray-500 dark:text-gray-400">{card.bank_name}</p>}
               </div>

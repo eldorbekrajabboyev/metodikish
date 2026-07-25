@@ -392,7 +392,7 @@ function OrderDetail({ user }) {
                   <p className="text-xs text-tg-hint">Karta raqami</p>
                   <CopyButton text={cards[0].card_number.replace(/\s/g, '')} label="Raqamni nusxalash" />
                 </div>
-                <p className="font-mono font-bold text-lg text-tg-text mt-0.5">{cards[0].card_number}</p>
+                <p className="font-mono font-bold text-lg text-tg-text mt-0.5">{cards[0].card_number.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim()}</p>
                 <p className="text-sm text-tg-text">{cards[0].card_holder}</p>
                 {cards[0].bank_name && <p className="text-xs text-tg-hint">{cards[0].bank_name}</p>}
                 <div className="mt-3 pt-3 border-t border-tg-text/10 flex items-center justify-between">

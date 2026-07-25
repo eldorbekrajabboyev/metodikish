@@ -347,7 +347,7 @@ app.delete('/api/services/:id', adminAuth, async (req, res) => {
 app.get('/api/cards', adminAuth, async (req, res) => {
   try {
     const cards = await queryAll('SELECT * FROM payment_cards ORDER BY id ASC');
-    res.json(cards.map(c => ({ ...c, card_number: maskCardNumber(c.card_number) })));
+    res.json(cards);
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
@@ -357,7 +357,7 @@ app.post('/api/cards', adminAuth, async (req, res) => {
     if (!card_number || typeof card_number !== 'string' || card_number.replace(/\s/g, '').length < 16) return sendError(res, 400, 'Karta raqami noto\'g\'ri');
     if (!card_holder || typeof card_holder !== 'string' || card_holder.trim().length < 2) return sendError(res, 400, 'Karta egasi nomi kerak');
     const result = await run('INSERT INTO payment_cards (card_number, card_holder, bank_name) VALUES (?, ?, ?)',
-      ['**** **** **** ' + card_number.trim().slice(-4), card_holder.trim().slice(0, 100), (bank_name || '').trim().slice(0, 100)]);
+      [card_number.replace(/\s/g, '').trim(), card_holder.trim().slice(0, 100), (bank_name || '').trim().slice(0, 100)]);
     res.json(await queryOne('SELECT * FROM payment_cards WHERE id = ?', [result.lastInsertRowid]));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -365,7 +365,7 @@ app.post('/api/cards', adminAuth, async (req, res) => {
 app.put('/api/cards/:id', adminAuth, async (req, res) => {
   try {
     const { card_number, card_holder, bank_name, is_active } = req.body;
-    const masked = card_number ? ('**** **** **** ' + String(card_number).replace(/\s/g, '').slice(-4)) : undefined;
+    const masked = card_number ? card_number.replace(/\s/g, '').trim() : undefined;
     const updates = [];
     const params = [];
     if (masked !== undefined) { updates.push('card_number = ?'); params.push(masked); }
@@ -879,7 +879,7 @@ app.get('/api/user/orders/:telegram_id', telegramAuth, async (req, res) => {
 app.get('/api/user/active-cards', telegramAuth, async (req, res) => {
   try {
     const cards = await queryAll('SELECT id, card_number, card_holder, bank_name FROM payment_cards WHERE is_active = 1');
-    res.json(cards.map(c => ({ ...c, card_number: maskCardNumber(c.card_number) })));
+    res.json(cards);
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
 
