@@ -1013,7 +1013,8 @@ app.get('/api/admin/reviews', adminAuth, async (req, res) => {
     );
     res.json(reviews);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('Reviews list error:', e.message);
+    sendError(res, 500, 'Server xatosi');
   }
 });
 
@@ -1026,7 +1027,8 @@ app.patch('/api/admin/reviews/:id', adminAuth, async (req, res) => {
     await run('UPDATE reviews SET status = ? WHERE id = ?', [status, req.params.id]);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('Review status update error:', e.message);
+    sendError(res, 500, 'Server xatosi');
   }
 });
 
