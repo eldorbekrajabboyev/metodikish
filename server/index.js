@@ -299,9 +299,10 @@ app.post('/api/services', adminAuth, async (req, res) => {
   try {
     const { name, description, price } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length < 2) return sendError(res, 400, 'Nomi kamida 2 ta belgi bo\'lishi kerak');
-    if (!price || typeof price !== 'number' || price < 0) return sendError(res, 400, 'Narx noto\'g\'ri');
+    const numPrice = typeof price === 'string' ? Number(price) : price;
+    if (!numPrice || typeof numPrice !== 'number' || isNaN(numPrice) || numPrice < 0) return sendError(res, 400, 'Narx noto\'g\'ri');
     const result = await run('INSERT INTO services (name, description, price) VALUES (?, ?, ?)',
-      [name.trim().slice(0, 200), (description || '').trim().slice(0, 500), price]);
+      [name.trim().slice(0, 200), (description || '').trim().slice(0, 500), numPrice]);
     res.json(await queryOne('SELECT * FROM services WHERE id = ?', [result.lastInsertRowid]));
   } catch (err) { sendError(res, 500, 'Server xatosi'); }
 });
@@ -321,9 +322,10 @@ app.put('/api/services/:id', adminAuth, async (req, res) => {
       params.push((description || '').trim().slice(0, 500));
     }
     if (price !== undefined) {
-      if (typeof price !== 'number' || price < 0) return sendError(res, 400, 'Narx noto\'g\'ri');
+      const numPrice = typeof price === 'string' ? Number(price) : price;
+      if (typeof numPrice !== 'number' || isNaN(numPrice) || numPrice < 0) return sendError(res, 400, 'Narx noto\'g\'ri');
       updates.push('price = ?');
-      params.push(price);
+      params.push(numPrice);
     }
     if (is_active !== undefined) {
       updates.push('is_active = ?');
