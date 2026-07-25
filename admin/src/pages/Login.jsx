@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../api/api'
 
 function Login() {
@@ -7,6 +7,8 @@ function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const location = useLocation()
+  const from = location.state?.from || '/'
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -16,7 +18,7 @@ function Login() {
     try {
       const res = await api.post('/api/admin/login', { api_key: apiKey.trim() })
       sessionStorage.setItem('admin_token', res.data.token)
-      navigate('/')
+      navigate(from, { replace: true })
       window.location.reload()
     } catch (err) {
       setError(err.response?.data?.error || 'Kirish xatosi')

@@ -26,7 +26,8 @@ const navItems = [
 
 function AuthGuard({ children }) {
   const token = sessionStorage.getItem('admin_token')
-  if (!token) return <Navigate to="/login" replace />
+  const location = useLocation()
+  if (!token) return <Navigate to="/login" state={{ from: location.pathname }} replace />
   return children
 }
 
