@@ -16,7 +16,7 @@ function Login() {
     try {
       const res = await api.post('/api/admin/login', { api_key: apiKey.trim() })
       sessionStorage.setItem('admin_token', res.data.token)
-      navigate('/admin/')
+      navigate('/')
       window.location.reload()
     } catch (err) {
       setError(err.response?.data?.error || 'Kirish xatosi')
