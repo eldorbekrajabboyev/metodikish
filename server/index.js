@@ -1112,6 +1112,20 @@ app.patch('/api/admin/reviews/:id', adminAuth, async (req, res) => {
   }
 });
 
+// Regions data — served from JSON file (not bundled in client)
+const regionsDataPath = path.join(__dirname, 'data', 'uzbekistan_regions_districts_schools.json');
+let regionsCache = null;
+app.get('/api/regions', (req, res) => {
+  try {
+    if (!regionsCache) {
+      if (!fs.existsSync(regionsDataPath)) return res.status(404).json({ error: 'Regions data not found' });
+      regionsCache = JSON.parse(fs.readFileSync(regionsDataPath, 'utf8'));
+    }
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.json(regionsCache);
+  } catch (err) { sendError(res, 500, 'Server xatosi'); }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

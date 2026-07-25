@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axios from 'axios'
 import Header from '../components/Header'
-import regionsData from '../../../server/data/uzbekistan_regions_districts_schools.json'
 
 const GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
@@ -11,14 +10,6 @@ const SCHOOL_TYPES = [
   { id: 'russian', label: 'Rus maktab', icon: '\u{1F1F7}\u{1F1FA}' },
   { id: 'qoraqalpoq', label: "Qoraqalpoq maktab", icon: '\u{1F3DB}' },
 ]
-
-const REGION_NAMES = regionsData.regions.map(r => r.name_uz)
-
-function getDistricts(regionName) {
-  const region = regionsData.regions.find(r => r.name_uz === regionName)
-  if (!region) return []
-  return region.districts.map(d => d.name)
-}
 
 function getLanguageSurcharge(schoolType, subject) {
   if (!schoolType || !subject) return 0
@@ -120,6 +111,7 @@ function OrderForm({ user }) {
   const [step, setStep] = useState(1)
   const [images, setImages] = useState([])
   const [cards, setCards] = useState([])
+  const [regionsData, setRegionsData] = useState(null)
   const [promoCode, setPromoCode] = useState('')
   const [promoDiscount, setPromoDiscount] = useState(0)
   const [promoCodeId, setPromoCodeId] = useState(null)
@@ -144,7 +136,6 @@ function OrderForm({ user }) {
     geographic_level: 'maktab',
   })
 
-  const districts = getDistricts(form.region)
   const isKarakalpakstan = form.region === "Qoraqalpog'iston Respublikasi"
   const availableSchoolTypes = isKarakalpakstan ? SCHOOL_TYPES : SCHOOL_TYPES.filter(st => st.id !== 'qoraqalpoq')
 
@@ -164,10 +155,12 @@ function OrderForm({ user }) {
     Promise.all([
       axios.get('/api/services'),
       axios.get('/api/user/active-cards'),
-    ]).then(([servicesRes, cardsRes]) => {
+      axios.get('/api/regions'),
+    ]).then(([servicesRes, cardsRes, regionsRes]) => {
       const svc = servicesRes.data.find(s => s.id == serviceId)
       setService(svc)
       setCards(cardsRes.data)
+      setRegionsData(regionsRes.data)
       if (user?.id) {
         axios.get(`/api/user/referral-info/${user.id}`).then(refRes => {
           setReferralBalance(refRes.data.referral_balance || 0)
@@ -177,6 +170,14 @@ function OrderForm({ user }) {
     }).catch(console.error)
     .finally(() => setLoading(false))
   }, [serviceId, user])
+
+  const regionNames = useMemo(() => regionsData ? regionsData.regions.map(r => r.name_uz) : [], [regionsData])
+
+  const districts = useMemo(() => {
+    if (!regionsData || !form.region) return []
+    const region = regionsData.regions.find(r => r.name_uz === form.region)
+    return region ? region.districts.map(d => d.name) : []
+  }, [regionsData, form.region])
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files)
@@ -361,7 +362,7 @@ function OrderForm({ user }) {
               className="w-full border border-tg-text/10 rounded-2xl px-4 py-3.5 text-base bg-tg-secondary focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             >
               <option value="">Viloyatni tanlang</option>
-              {REGION_NAMES.map(r => (
+              {regionNames.map(r => (
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>

@@ -12,7 +12,21 @@ async function initDatabase() {
   const dbUrl = process.env.TURSO_DATABASE_URL;
   if (dbUrl) {
     db = createClient({ url: dbUrl, authToken: process.env.TURSO_AUTH_TOKEN || undefined });
+    // Verify connection
+    try {
+      await db.execute('SELECT 1');
+      console.log('📦 Database initialized (Turso)');
+    } catch (err) {
+      console.error('❌ Turso connection failed:', err.message);
+      process.exit(1);
+    }
   } else {
+    if (process.env.NODE_ENV === 'production' || process.env.FLY_APP_NAME) {
+      console.error('❌ FATAL: TURSO_DATABASE_URL not set in production! SQLite fallback disabled for data safety.');
+      console.error('   Run: fly secrets set TURSO_DATABASE_URL=<your-turso-url> TURSO_AUTH_TOKEN=<your-token>');
+      process.exit(1);
+    }
+    console.warn('⚠️  WARNING: Using local SQLite — NOT suitable for production!');
     const uploadsDir = path.join(__dirname, '..', 'uploads');
     if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
     db = createClient({ url: `file:${path.join(uploadsDir, 'local.db')}` });
@@ -218,7 +232,6 @@ async function initDatabase() {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)`);
   await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_usage_unique_user ON promo_code_usage(promo_code_id, user_id)`);
 
-  console.log('📦 Database initialized (Turso)');
   return db;
 }
 
