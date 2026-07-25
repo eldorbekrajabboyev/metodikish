@@ -14,6 +14,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401 && window.location.pathname !== '/admin/login') {
+      sessionStorage.setItem('admin_redirect', window.location.pathname);
       sessionStorage.removeItem('admin_token');
       window.location.href = '/admin/login';
     }

@@ -8,7 +8,7 @@ function Login() {
   const [error, setError] = useState('')
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from || '/'
+  const from = location.state?.from || sessionStorage.getItem('admin_redirect') || '/'
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -18,6 +18,7 @@ function Login() {
     try {
       const res = await api.post('/api/admin/login', { api_key: apiKey.trim() })
       sessionStorage.setItem('admin_token', res.data.token)
+      sessionStorage.removeItem('admin_redirect')
       navigate(from, { replace: true })
       window.location.reload()
     } catch (err) {
